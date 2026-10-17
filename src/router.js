@@ -1,20 +1,25 @@
-// Простой маршрутизатор по хэшу адреса: #/operations → страница «Операции».
+// Простой маршрутизатор по хэшу адреса: #/operations → страница «Операции»,
+// #/operations/abc → страница операции с параметром id = «abc».
 // Хэш выбран намеренно: приложение раздаётся как статические файлы,
 // и при перезагрузке страницы сервер не должен знать о внутренних адресах.
 
 /**
- * @typedef {{ title: string, render: (root: HTMLElement) => void | Promise<void> }} Route
+ * @typedef {Object} Route
+ * @property {string} title
+ * @property {string} [back] — адрес для кнопки «Назад» (у страниц верхнего уровня нет)
+ * @property {string} [tab] — какая вкладка подсвечивается
+ * @property {(root: HTMLElement, params: Record<string, string>) => void | Promise<void>} render
  */
 
-/** @type {Map<string, Route>} */
-const routes = new Map();
+/** @type {{ pattern: string[], route: Route }[]} */
+const routes = [];
 
 /**
  * @param {string} path
  * @param {Route} route
  */
 export function register(path, route) {
-  routes.set(path, route);
+  routes.push({ pattern: path.split('/').filter(Boolean), route });
 }
 
 export function currentPath() {
@@ -22,30 +27,63 @@ export function currentPath() {
   return hash || '/';
 }
 
+/** @param {string} path */
+function match(path) {
+  const segs = path.split('/').filter(Boolean);
+  for (const { pattern, route } of routes) {
+    if (pattern.length !== segs.length) continue;
+    /** @type {Record<string, string>} */
+    const params = {};
+    let ok = true;
+    for (let i = 0; i < pattern.length; i++) {
+      if (pattern[i].startsWith(':')) params[pattern[i].slice(1)] = decodeURIComponent(segs[i]);
+      else if (pattern[i] !== segs[i]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return { route, params };
+  }
+  return null;
+}
+
+/** @param {string} path */
+export function navigate(path) {
+  location.hash = `#${path}`;
+}
+
 /**
  * @param {HTMLElement} root
  * @param {HTMLElement} titleEl
+ * @param {HTMLAnchorElement} backEl
  */
-export async function renderCurrent(root, titleEl) {
+export async function renderCurrent(root, titleEl, backEl) {
   const path = currentPath();
-  const route = routes.get(path) ?? routes.get('/');
-  if (!route) return;
+  const found = match(path) ?? match('/');
+  if (!found) return;
+  const { route, params } = found;
 
   titleEl.textContent = route.title;
   document.title = route.title === 'Главная' ? 'Финансы' : `${route.title} — Финансы`;
-  root.innerHTML = '';
-  await route.render(root);
+  backEl.hidden = !route.back;
+  backEl.href = route.back ? `#${route.back}` : '#/';
 
+  root.innerHTML = '';
+  window.scrollTo(0, 0);
+  await route.render(root, params);
+
+  const tab = route.tab ?? `/${path.split('/').filter(Boolean)[0] ?? ''}`;
   document.querySelectorAll('[data-route]').forEach((el) => {
-    el.classList.toggle('active', el.getAttribute('data-route') === path);
+    el.classList.toggle('active', el.getAttribute('data-route') === tab);
   });
 }
 
 /**
  * @param {HTMLElement} root
  * @param {HTMLElement} titleEl
+ * @param {HTMLAnchorElement} backEl
  */
-export function start(root, titleEl) {
-  window.addEventListener('hashchange', () => renderCurrent(root, titleEl));
-  return renderCurrent(root, titleEl);
+export function start(root, titleEl, backEl) {
+  window.addEventListener('hashchange', () => renderCurrent(root, titleEl, backEl));
+  return renderCurrent(root, titleEl, backEl);
 }

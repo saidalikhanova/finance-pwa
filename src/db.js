@@ -22,6 +22,20 @@ export const MIGRATIONS = [
       db.createObjectStore('settings', { keyPath: 'key' });
     },
   },
+  {
+    version: 2,
+    upgrade(db) {
+      // Справочник категорий доходов и расходов.
+      const categories = db.createObjectStore('categories', { keyPath: 'id' });
+      categories.createIndex('kind', 'kind');
+
+      // Операции (доходы и расходы). Суммы — целые в минимальных единицах.
+      const operations = db.createObjectStore('operations', { keyPath: 'id' });
+      operations.createIndex('date', 'date');
+      operations.createIndex('categoryId', 'categoryId');
+      operations.createIndex('type', 'type');
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
@@ -86,6 +100,76 @@ export function promisify(request) {
 }
 
 /**
+ * Ждёт завершения транзакции.
+ * @param {IDBTransaction} tx
+ * @returns {Promise<void>}
+ */
+export function done(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+/**
+ * Все записи таблицы или индекса.
+ * @template T
+ * @param {IDBDatabase} db
+ * @param {string} store
+ * @param {{ index?: string, query?: IDBValidKey | IDBKeyRange }} [opts]
+ * @returns {Promise<T[]>}
+ */
+export function getAll(db, store, opts = {}) {
+  const s = db.transaction(store).objectStore(store);
+  const source = opts.index ? s.index(opts.index) : s;
+  return promisify(source.getAll(opts.query));
+}
+
+/**
+ * @template T
+ * @param {IDBDatabase} db
+ * @param {string} store
+ * @param {IDBValidKey} key
+ * @returns {Promise<T | undefined>}
+ */
+export function getOne(db, store, key) {
+  return promisify(db.transaction(store).objectStore(store).get(key));
+}
+
+/**
+ * @param {IDBDatabase} db
+ * @param {string} store
+ * @param {object} value
+ */
+export async function put(db, store, value) {
+  const tx = db.transaction(store, 'readwrite');
+  tx.objectStore(store).put(value);
+  await done(tx);
+}
+
+/**
+ * @param {IDBDatabase} db
+ * @param {string} store
+ * @param {IDBValidKey} key
+ */
+export async function remove(db, store, key) {
+  const tx = db.transaction(store, 'readwrite');
+  tx.objectStore(store).delete(key);
+  await done(tx);
+}
+
+/**
+ * @param {IDBDatabase} db
+ * @param {string} store
+ * @param {string} index
+ * @param {IDBValidKey | IDBKeyRange} query
+ */
+export function count(db, store, index, query) {
+  return promisify(db.transaction(store).objectStore(store).index(index).count(query));
+}
+
+/**
  * @param {string} key
  * @param {IDBDatabase} [db]
  */
@@ -104,11 +188,7 @@ export async function setSetting(key, value, db) {
   const d = db ?? (await getDb());
   const tx = d.transaction('settings', 'readwrite');
   tx.objectStore('settings').put({ key, value });
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve(undefined);
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
+  await done(tx);
 }
 
 /**
