@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121417" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Финансы">
+  <title>Финансы</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="page-title">Главная</h1>
+  </header>
+
+  <main id="view" class="view" aria-live="polite"></main>
+
+  <nav class="tabbar" aria-label="Разделы">
+    <a href="#/" data-route="/" class="tab">
+      <span class="tab-icon" aria-hidden="true">⌂</span><span>Главная</span>
+    </a>
+    <a href="#/operations" data-route="/operations" class="tab">
+      <span class="tab-icon" aria-hidden="true">≡</span><span>Операции</span>
+    </a>
+    <a href="#/budget" data-route="/budget" class="tab">
+      <span class="tab-icon" aria-hidden="true">◔</span><span>Бюджет</span>
+    </a>
+    <a href="#/reports" data-route="/reports" class="tab">
+      <span class="tab-icon" aria-hidden="true">▤</span><span>Отчёты</span>
+    </a>
+    <a href="#/more" data-route="/more" class="tab">
+      <span class="tab-icon" aria-hidden="true">⋯</span><span>Ещё</span>
+    </a>
+  </nav>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
