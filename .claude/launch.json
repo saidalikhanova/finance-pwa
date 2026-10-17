@@ -4,7 +4,7 @@
     {
       "name": "finance-pwa",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5193", "--bind", "127.0.0.1"],
+      "runtimeArgs": ["scripts/serve.py", "5193"],
       "port": 5193
     }
   ]

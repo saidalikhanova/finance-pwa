@@ -43,6 +43,15 @@ export const MIGRATIONS = [
       db.createObjectStore('rates', { keyPath: 'date' });
     },
   },
+  {
+    version: 4,
+    upgrade(db) {
+      // Бюджет: строка на месяц и категорию — плановая сумма и лимит (в центах евро).
+      // id = 'ГГГГ-ММ:categoryId'.
+      const budgets = db.createObjectStore('budgets', { keyPath: 'id' });
+      budgets.createIndex('month', 'month');
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
@@ -207,6 +216,7 @@ export function deleteDatabase(name) {
     const req = indexedDB.deleteDatabase(name);
     req.onsuccess = () => resolve(undefined);
     req.onerror = () => reject(req.error);
-    req.onblocked = () => reject(new Error('Удаление заблокировано открытым соединением'));
+    // «blocked» — временное состояние: удаление завершится, когда закроются
+    // остальные соединения (у них сработает onversionchange). Ждём success.
   });
 }

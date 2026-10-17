@@ -10,7 +10,7 @@
 В папке проекта:
 
 ```bash
-python3 -m http.server 5193 --bind 127.0.0.1
+python3 scripts/serve.py
 ```
 
 Затем открыть в браузере http://127.0.0.1:5193/

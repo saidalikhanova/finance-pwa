@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, promisify, done } from '../db.js';
+import { getDb, getAll, getOne, put, remove, promisify, done } from '../db.js';
 import { toEurCents } from '../money.js';
 
 // Курсы тенге к евро по датам. По решению пользователя (см. PROGRESS.md, этап 3)
@@ -79,6 +79,28 @@ async function applyRateToOperations(date, rate, db) {
   }
   await done(tx);
   return updated;
+}
+
+/**
+ * Все сохранённые курсы, новые сверху.
+ * @param {IDBDatabase} [db]
+ * @returns {Promise<Rate[]>}
+ */
+export async function listRates(db) {
+  const d = db ?? (await getDb());
+  /** @type {Rate[]} */
+  const all = await getAll(d, 'rates');
+  return all.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+/**
+ * Удаляет курс на дату. Операции, уже получившие этот курс, не меняются.
+ * @param {string} date
+ * @param {IDBDatabase} [db]
+ */
+export async function deleteRate(date, db) {
+  const d = db ?? (await getDb());
+  await remove(d, 'rates', date);
 }
 
 /**

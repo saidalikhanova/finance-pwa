@@ -4,5 +4,7 @@ import './money.test.js';
 import './categories.test.js';
 import './operations.test.js';
 import './rates.test.js';
+import './limits.test.js';
+import './budgets.test.js';
 
 run();

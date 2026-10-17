@@ -148,6 +148,24 @@ export async function listOperations(filter = {}, db) {
 }
 
 /**
+ * Факт по категориям за месяц в центах евро: { categoryId → сумма }.
+ * Операции без курса не учитываются.
+ * @param {string} month — ГГГГ-ММ
+ * @param {IDBDatabase} [db]
+ * @returns {Promise<Map<string, number>>}
+ */
+export async function sumByCategory(month, db) {
+  const ops = await listOperations(monthRange(month), db);
+  /** @type {Map<string, number>} */
+  const totals = new Map();
+  for (const o of ops) {
+    if (o.amountEur == null) continue;
+    totals.set(o.categoryId, (totals.get(o.categoryId) ?? 0) + o.amountEur);
+  }
+  return totals;
+}
+
+/**
  * Границы месяца: «2026-10» → { from: '2026-10-01', to: '2026-10-31' }.
  * @param {string} month — ГГГГ-ММ
  */

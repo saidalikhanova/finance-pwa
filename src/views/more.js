@@ -7,6 +7,7 @@ export function renderMore(root) {
       'div',
       { class: 'card list-card' },
       el('a', { class: 'menu-row', href: '#/categories' }, 'Категории', el('span', { class: 'muted' }, '›')),
+      el('a', { class: 'menu-row', href: '#/rates' }, 'Курсы тенге к евро', el('span', { class: 'muted' }, '›')),
     ),
     el('p', { class: 'muted small' }, 'Резервная копия и настройки появятся на этапе 9.'),
   );

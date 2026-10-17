@@ -1,6 +1,9 @@
 import { el, toast, confirmDialog } from '../ui.js';
 import { parseAmount, amountToInput, formatMoney, parseRate, formatRate, toEurCents } from '../money.js';
 import { suggestRate, saveRate } from '../repo/rates.js';
+import { getBudgetLine } from '../repo/budgets.js';
+import { sumByCategory } from '../repo/operations.js';
+import { limitStatus, limitMessage } from '../limits.js';
 import { navigate } from '../router.js';
 import {
   createOperation,
@@ -197,6 +200,20 @@ export async function renderOperationForm(root, params) {
         // Запоминаем курс на дату и пересчитываем другие операции за эту дату без курса.
         const n = await saveRate(data.date, rate);
         if (n) message += `. Курс применён ещё к ${n} ${plural(n, 'операции', 'операциям', 'операциям')}`;
+      }
+      // Сообщение по лимиту категории (п. 4.3 ТЗ) — только для расходов с заданным лимитом.
+      if (data.type === 'expense') {
+        const month = data.date.slice(0, 7);
+        const line = await getBudgetLine(month, data.categoryId);
+        if (line?.limit != null) {
+          const spent = (await sumByCategory(month)).get(data.categoryId) ?? 0;
+          const category = allCategories.find((c) => c.id === data.categoryId);
+          const status = limitStatus(line.limit, spent, month, todayISO());
+          message = limitMessage(category?.name ?? 'Категория', status);
+          toast(message, { ms: 6000, error: status.level === 'over' });
+          navigate('/operations');
+          return;
+        }
       }
       toast(message);
       navigate('/operations');
