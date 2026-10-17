@@ -36,6 +36,13 @@ export const MIGRATIONS = [
       operations.createIndex('type', 'type');
     },
   },
+  {
+    version: 3,
+    upgrade(db) {
+      // Курсы тенге к евро по датам: { date: 'ГГГГ-ММ-ДД', rate: целое × RATE_SCALE, source }.
+      db.createObjectStore('rates', { keyPath: 'date' });
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

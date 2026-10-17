@@ -1,5 +1,6 @@
 import { el, toast, confirmDialog } from '../ui.js';
-import { parseAmount, amountToInput, formatMoney } from '../money.js';
+import { parseAmount, amountToInput, formatMoney, parseRate, formatRate, toEurCents } from '../money.js';
+import { suggestRate, saveRate } from '../repo/rates.js';
 import { navigate } from '../router.js';
 import {
   createOperation,
@@ -61,26 +62,63 @@ export async function renderOperationForm(root, params) {
     currencyInput.value,
     (v) => {
       currencyInput.value = v;
-      updateRateNote();
+      updateRateField();
     },
   );
 
-  const rateNote = el('p', { class: 'muted small' });
-  function updateRateNote() {
-    if (currencyInput.value === 'EUR') {
-      rateNote.textContent = '';
+  // Дата
+  const dateInput = el('input', {
+    class: 'input',
+    type: 'date',
+    name: 'date',
+    value: existing?.date ?? todayISO(),
+    required: true,
+    onchange: () => suggestRateForDate(),
+  });
+
+  // Курс (только для тенге). Вводится вручную; введённый курс запоминается
+  // на дату и подставляется в следующие операции.
+  const rateInput = el('input', {
+    class: 'input',
+    name: 'rate',
+    inputmode: 'decimal',
+    autocomplete: 'off',
+    placeholder: 'например 508,95',
+    value: existing?.rate ? formatRate(existing.rate) : '',
+    oninput: () => {
+      rateTouched = true;
+      updateEurPreview();
+    },
+  });
+  let rateTouched = Boolean(existing?.rate);
+  const rateField = field('Курс, ₸ за 1 €', rateInput, el('p', { class: 'muted small' }, 'Если оставить пустым, операция сохранится со статусом «курс не определён».'));
+  const eurPreview = el('p', { class: 'muted small' });
+  amountInput.addEventListener('input', updateEurPreview);
+
+  function updateRateField() {
+    rateField.hidden = currencyInput.value !== 'KZT';
+    if (!rateField.hidden && !rateTouched) suggestRateForDate();
+    updateEurPreview();
+  }
+
+  async function suggestRateForDate() {
+    if (currencyInput.value !== 'KZT' || rateTouched) return;
+    const r = await suggestRate(dateInput.value);
+    rateInput.value = r ? formatRate(r.rate) : '';
+    updateEurPreview();
+  }
+
+  function updateEurPreview() {
+    if (currencyInput.value !== 'KZT') {
+      eurPreview.textContent = '';
       return;
     }
-    if (existing?.amountEur != null) {
-      rateNote.textContent = `≈ ${formatMoney(existing.amountEur, 'EUR')} по курсу ${existing.rateSource === 'manual' ? '(задан вручную)' : 'Нацбанка'}`;
-    } else {
-      rateNote.textContent = 'Курс к евро будет подставлен автоматически (этап 3). Пока — «курс не определён».';
-    }
+    const amount = parseAmount(amountInput.value);
+    const rate = parseRate(rateInput.value);
+    const eur = amount && rate ? toEurCents(amount, 'KZT', rate) : null;
+    eurPreview.textContent = eur != null ? `≈ ${formatMoney(eur, 'EUR')}` : '';
   }
-  updateRateNote();
-
-  // Дата
-  const dateInput = el('input', { class: 'input', type: 'date', name: 'date', value: existing?.date ?? todayISO(), required: true });
+  updateRateField();
 
   // Категория
   const categorySelect = el('select', { class: 'select', name: 'categoryId', required: true });
@@ -103,8 +141,9 @@ export async function renderOperationForm(root, params) {
 
   form.replaceChildren(
     field('Тип', typeToggle),
-    field('Сумма', el('div', { class: 'amount-row' }, amountInput, currencyToggle), rateNote),
+    field('Сумма', el('div', { class: 'amount-row' }, amountInput, currencyToggle), eurPreview),
     field('Дата', dateInput),
+    rateField,
     field('Категория', categorySelect),
     field('Комментарий', commentInput),
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, isNew ? 'Сохранить' : 'Сохранить изменения')),
@@ -127,24 +166,39 @@ export async function renderOperationForm(root, params) {
       categorySelect.focus();
       return;
     }
+    const currency = /** @type {'EUR' | 'KZT'} */ (currencyInput.value);
+    let rate = null;
+    if (currency === 'KZT' && rateInput.value.trim()) {
+      rate = parseRate(rateInput.value);
+      if (rate == null) {
+        toast('Введите курс, например 508,95', { error: true });
+        rateInput.focus();
+        return;
+      }
+    }
     const data = {
       type: /** @type {'expense' | 'income'} */ (typeInput.value),
       amount,
-      currency: /** @type {'EUR' | 'KZT'} */ (currencyInput.value),
+      currency,
       date: dateInput.value,
       categoryId: categorySelect.value,
       comment: commentInput.value,
+      rate,
+      rateSource: rate ? /** @type {const} */ ('manual') : null,
     };
     try {
       if (existing) {
-        // При смене валюты прежний курс теряет смысл.
-        const keepRate = existing.currency === data.currency;
-        await updateOperation(existing.id, { ...data, rate: keepRate ? existing.rate : null, rateSource: keepRate ? existing.rateSource : null });
-        toast('Изменения сохранены');
+        await updateOperation(existing.id, data);
       } else {
         await createOperation(data);
-        toast('Операция сохранена');
       }
+      let message = existing ? 'Изменения сохранены' : 'Операция сохранена';
+      if (rate) {
+        // Запоминаем курс на дату и пересчитываем другие операции за эту дату без курса.
+        const n = await saveRate(data.date, rate);
+        if (n) message += `. Курс применён ещё к ${n} ${plural(n, 'операции', 'операциям', 'операциям')}`;
+      }
+      toast(message);
       navigate('/operations');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось сохранить', { error: true });
@@ -166,6 +220,21 @@ export async function renderOperationForm(root, params) {
  */
 function field(label, ...controls) {
   return el('label', { class: 'field' }, el('span', { class: 'field-label' }, label), ...controls);
+}
+
+/**
+ * Форма слова по числу: plural(3, 'операции', 'операциям', 'операциям').
+ * @param {number} n
+ * @param {string} one
+ * @param {string} few
+ * @param {string} many
+ */
+function plural(n, one, few, many) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }
 
 /**

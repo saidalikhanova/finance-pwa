@@ -153,6 +153,7 @@ body {
 .input-amount { font-size: 24px; font-weight: 600; }
 
 .field { display: block; margin-bottom: 16px; }
+.field[hidden] { display: none; }
 .field-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
 .form-actions { margin: 24px 0 12px; }
 .form-actions .btn { width: 100%; }

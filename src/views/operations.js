@@ -1,5 +1,5 @@
 import { el, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
-import { formatMoney } from '../money.js';
+import { formatMoney, formatRate } from '../money.js';
 import { listOperations, monthRange } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
 
@@ -113,7 +113,7 @@ export async function renderOperations(root) {
         o.currency === 'KZT'
           ? o.amountEur == null
             ? 'курс не определён'
-            : `≈ ${formatMoney(o.amountEur, 'EUR')}`
+            : `≈ ${formatMoney(o.amountEur, 'EUR')} · курс ${formatRate(o.rate ?? 0)}`
           : '';
       list.append(
         el(
