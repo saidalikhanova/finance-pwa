@@ -5,6 +5,8 @@ import { getBudgetLine } from '../repo/budgets.js';
 import { sumByCategory } from '../repo/operations.js';
 import { limitStatus, limitMessage } from '../limits.js';
 import { getWish, updateWish } from '../repo/wishes.js';
+import { itemsEditor } from './items-editor.js';
+import { compressImage, savePhoto, getPhoto, deletePhoto } from '../photos.js';
 import { getPlanned, updatePlanned } from '../repo/planned.js';
 import { navigate } from '../router.js';
 import {
@@ -155,8 +157,67 @@ export async function renderOperationForm(root, params) {
   }
   fillCategories();
 
-  // Комментарий
+  // Комментарий и магазин
   const commentInput = el('input', { class: 'input', name: 'comment', value: existing?.comment ?? preset?.comment ?? '', placeholder: 'Необязательно', maxlength: 200 });
+  const storeInput = el('input', { class: 'input', name: 'store', value: existing?.store ?? '', placeholder: 'Необязательно', maxlength: 80 });
+
+  // Позиции покупки (чек). При наличии позиций сумма считается по ним.
+  const editor = itemsEditor(existing?.items ?? [], {
+    categories: allCategories,
+    currency: () => /** @type {'EUR' | 'KZT'} */ (currencyInput.value),
+    onChange: syncAmountWithItems,
+  });
+  const itemsDetails = el('details', { class: 'card list-card', open: Boolean(existing?.items?.length) },
+    el('summary', null, 'Позиции (чек)'),
+    el('p', { class: 'muted small' }, 'Для покупки из нескольких продуктов с разными категориями. Лимиты и отчёты учитывают категорию каждой позиции.'),
+    editor.el,
+  );
+  function syncAmountWithItems() {
+    const has = editor.length > 0;
+    amountInput.readOnly = has;
+    categorySelect.disabled = has;
+    if (has) {
+      amountInput.value = amountToInput(editor.total());
+      const first = editor.read()[0];
+      if (first?.categoryId) categorySelect.value = first.categoryId;
+      updateEurPreview();
+    }
+  }
+
+  // Фото чека
+  /** @type {Blob | null} */
+  let newPhoto = null;
+  let removePhoto = false;
+  const photoPreview = el('div', { class: 'photo-preview' });
+  const fileInput = el('input', { type: 'file', accept: 'image/*', hidden: true });
+  fileInput.addEventListener('change', async () => {
+    const f = fileInput.files?.[0];
+    if (!f) return;
+    try {
+      newPhoto = await compressImage(f);
+      removePhoto = false;
+      showPhoto(newPhoto);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Не удалось обработать фото', { error: true });
+    }
+    fileInput.value = '';
+  });
+  /** @param {Blob} blob */
+  function showPhoto(blob) {
+    const img = el('img', { src: URL.createObjectURL(blob), alt: 'Фото чека' });
+    img.addEventListener('load', () => URL.revokeObjectURL(img.src));
+    photoPreview.replaceChildren(img);
+  }
+  if (existing?.photoId) getPhoto(existing.photoId).then((b) => b && showPhoto(b));
+  const photoField = el('div', { class: 'field' },
+    el('span', { class: 'field-label' }, 'Фото чека'),
+    photoPreview,
+    el('div', { class: 'btn-row' },
+      el('button', { class: 'btn btn-secondary btn-small', type: 'button', onclick: () => fileInput.click() }, 'Снять или выбрать'),
+      el('button', { class: 'btn btn-secondary btn-small', type: 'button', onclick: () => { newPhoto = null; removePhoto = true; photoPreview.innerHTML = ''; } }, 'Убрать'),
+    ),
+    fileInput,
+  );
 
   form.replaceChildren(
     field('Тип', typeToggle),
@@ -164,24 +225,33 @@ export async function renderOperationForm(root, params) {
     field('Дата', dateInput),
     rateField,
     field('Категория', categorySelect),
+    itemsDetails,
+    field('Магазин', storeInput),
     field('Комментарий', commentInput),
+    photoField,
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, isNew ? 'Сохранить' : 'Сохранить изменения')),
     ...(existing ? [el('button', { class: 'btn btn-danger', type: 'button', onclick: onDelete }, 'Удалить операцию')] : []),
   );
   if (hint) form.prepend(hint);
   root.append(form);
+  syncAmountWithItems();
   if (isNew) amountInput.focus();
 
   /** @param {Event} e */
   async function onSubmit(e) {
     e.preventDefault();
-    const amount = parseAmount(amountInput.value);
-    if (amount == null) {
-      toast('Введите сумму, например 12,50', { error: true });
-      amountInput.focus();
+    const items = editor.read();
+    const amount = items.length ? editor.total() : parseAmount(amountInput.value);
+    if (amount == null || amount <= 0) {
+      toast(items.length ? 'Укажите суммы позиций' : 'Введите сумму, например 12,50', { error: true });
+      if (!items.length) amountInput.focus();
       return;
     }
-    if (!categorySelect.value) {
+    if (items.some((it) => !it.categoryId)) {
+      toast('У каждой позиции должна быть категория', { error: true });
+      return;
+    }
+    if (!items.length && !categorySelect.value) {
       toast('Выберите категорию', { error: true });
       categorySelect.focus();
       return;
@@ -196,13 +266,30 @@ export async function renderOperationForm(root, params) {
         return;
       }
     }
+    let photoId = existing?.photoId ?? null;
+    try {
+      if (removePhoto && photoId) {
+        await deletePhoto(photoId);
+        photoId = null;
+      }
+      if (newPhoto) {
+        if (photoId) await deletePhoto(photoId);
+        photoId = await savePhoto(newPhoto);
+      }
+    } catch (err) {
+      toast('Не удалось сохранить фото', { error: true });
+      return;
+    }
     const data = {
       type: /** @type {'expense' | 'income'} */ (typeInput.value),
       amount,
       currency,
       date: dateInput.value,
-      categoryId: categorySelect.value,
+      categoryId: items.length ? items[0].categoryId : categorySelect.value,
       comment: commentInput.value,
+      store: storeInput.value,
+      items: typeInput.value === 'expense' ? items : [],
+      photoId,
       rate,
       rateSource: rate ? /** @type {const} */ ('manual') : null,
     };
@@ -220,16 +307,24 @@ export async function renderOperationForm(root, params) {
         const n = await saveRate(data.date, rate);
         if (n) message += `. Курс применён ещё к ${n} ${plural(n, 'операции', 'операциям', 'операциям')}`;
       }
-      // Сообщение по лимиту категории (п. 4.3 ТЗ) — только для расходов с заданным лимитом.
+      // Сообщение по лимиту категории (п. 4.3 ТЗ) — для расходов с заданным лимитом.
+      // У покупки с позициями — по каждой затронутой категории с лимитом.
       if (data.type === 'expense') {
         const month = data.date.slice(0, 7);
-        const line = await getBudgetLine(month, data.categoryId);
-        if (line?.limit != null) {
-          const spent = (await sumByCategory(month)).get(data.categoryId) ?? 0;
-          const category = allCategories.find((c) => c.id === data.categoryId);
-          const status = limitStatus(line.limit, spent, month, todayISO());
-          message = limitMessage(category?.name ?? 'Категория', status);
-          toast(message, { ms: 6000, error: status.level === 'over' });
+        const catIds = [...new Set(items.length ? items.map((it) => it.categoryId) : [data.categoryId])];
+        const spentBy = await sumByCategory(month);
+        const messages = [];
+        let over = false;
+        for (const catId of catIds) {
+          const line = await getBudgetLine(month, catId);
+          if (line?.limit == null) continue;
+          const category = allCategories.find((c) => c.id === catId);
+          const status = limitStatus(line.limit, spentBy.get(catId) ?? 0, month, todayISO());
+          messages.push(limitMessage(category?.name ?? 'Категория', status));
+          if (status.level === 'over') over = true;
+        }
+        if (messages.length) {
+          toast(messages.join('\n'), { ms: 6000 + 2000 * (messages.length - 1), error: over });
           navigate('/operations');
           return;
         }
@@ -244,6 +339,7 @@ export async function renderOperationForm(root, params) {
   async function onDelete() {
     if (!existing) return;
     if (!(await confirmDialog('Удалить операцию? Это действие нельзя отменить.'))) return;
+    if (existing.photoId) await deletePhoto(existing.photoId);
     await deleteOperation(existing.id);
     toast('Операция удалена');
     navigate('/operations');

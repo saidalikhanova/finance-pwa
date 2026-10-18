@@ -57,6 +57,7 @@ export async function renderOperations(root) {
       ),
       el('div', { class: 'filter-row' }, typeSelect, catSelect),
     ),
+    el('div', { class: 'btn-row' }, el('a', { class: 'btn btn-secondary btn-small', href: '#/import' }, 'Импорт из чата')),
     list,
     el('a', { class: 'fab', href: '#/operations/new', 'aria-label': 'Добавить операцию' }, '+'),
   );
@@ -107,7 +108,9 @@ export async function renderOperations(root) {
         list.append(el('h3', { class: 'date-head' }, formatDate(o.date)));
       }
       const cat = byId.get(o.categoryId);
-      const sub = [cat?.name ?? 'Без категории', o.comment].filter(Boolean).join(' · ');
+      const n = o.items?.length ?? 0;
+      const title = n ? `${o.store || cat?.name || 'Покупка'} · ${n} поз.` : cat?.name ?? 'Без категории';
+      const subParts = [n ? [...new Set(o.items.map((it) => byId.get(it.categoryId)?.name))].filter(Boolean).join(', ') : '', o.comment !== o.store ? o.comment : '', o.photoId ? '📷' : ''].filter(Boolean);
       const amount = formatMoney(o.type === 'expense' ? -o.amount : o.amount, o.currency, { sign: true });
       const eur =
         o.currency === 'KZT'
@@ -119,7 +122,7 @@ export async function renderOperations(root) {
         el(
           'a',
           { class: 'row', href: `#/operations/${o.id}` },
-          el('div', { class: 'row-main' }, el('div', null, cat?.name ?? 'Без категории'), el('div', { class: 'muted small' }, sub === cat?.name ? '' : o.comment)),
+          el('div', { class: 'row-main' }, el('div', null, title), el('div', { class: 'muted small' }, subParts.join(' · '))),
           el(
             'div',
             { class: 'row-amount' },

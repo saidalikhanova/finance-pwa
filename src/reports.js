@@ -2,6 +2,7 @@
 // Операции без курса (amountEur == null) в суммы не входят, но считаются отдельно.
 
 import { divRound } from './money.js';
+import { categoryAmountsEur } from './items.js';
 import { shiftMonth } from './ui.js';
 
 /** @typedef {import('./repo/operations.js').Operation} Operation */
@@ -32,8 +33,10 @@ export function expensesByCategory(ops, categoriesById) {
   /** @type {Map<string, number>} */
   const totals = new Map();
   for (const o of ops) {
-    if (o.type !== 'expense' || o.amountEur == null) continue;
-    totals.set(o.categoryId, (totals.get(o.categoryId) ?? 0) + o.amountEur);
+    if (o.type !== 'expense') continue;
+    for (const [categoryId, eur] of categoryAmountsEur(o)) {
+      totals.set(categoryId, (totals.get(categoryId) ?? 0) + eur);
+    }
   }
   const total = [...totals.values()].reduce((a, b) => a + b, 0);
   return [...totals.entries()]

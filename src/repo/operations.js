@@ -1,5 +1,6 @@
 import { getDb, getAll, getOne, put, remove } from '../db.js';
 import { toEurCents } from '../money.js';
+import { normalizeItems, itemsTotal, categoryAmountsEur } from '../items.js';
 
 /**
  * @typedef {import('../money.js').Currency} Currency
@@ -18,7 +19,9 @@ import { toEurCents } from '../money.js';
  * @property {number | null} amountEur — в центах; null, пока курс не определён
  * @property {string} categoryId
  * @property {string} comment
- * @property {Array<object>} items — позиции покупки (появятся на этапах 7–8)
+ * @property {import('../items.js').Item[]} items — позиции покупки; при наличии сумма операции равна их сумме
+ * @property {string} store — магазин (необязательно)
+ * @property {string | null} photoId — фото чека
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -42,13 +45,16 @@ export function todayISO() {
 export function normalizeOperation(input) {
   if (input.type !== 'expense' && input.type !== 'income') throw new Error('Не указан тип операции');
   if (input.currency !== 'EUR' && input.currency !== 'KZT') throw new Error('Не указана валюта');
-  if (!Number.isSafeInteger(input.amount) || /** @type {number} */ (input.amount) <= 0) {
+  const items = normalizeItems(input.items ?? []);
+  // Покупка с позициями: сумма операции — сумма позиций, категория — категория первой позиции.
+  const amount = items.length ? itemsTotal(items) : /** @type {number} */ (input.amount);
+  const categoryId = items.length ? items[0].categoryId : input.categoryId;
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
     throw new Error('Сумма должна быть больше нуля');
   }
   if (!input.date || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Не указана дата');
-  if (!input.categoryId) throw new Error('Не выбрана категория');
+  if (!categoryId) throw new Error('Не выбрана категория');
 
-  const amount = /** @type {number} */ (input.amount);
   const rate = input.currency === 'EUR' ? null : (input.rate ?? null);
   const rateSource = input.currency === 'EUR' ? null : rate ? (input.rateSource ?? 'manual') : null;
 
@@ -60,9 +66,11 @@ export function normalizeOperation(input) {
     rate,
     rateSource,
     amountEur: toEurCents(amount, input.currency, rate),
-    categoryId: input.categoryId,
+    categoryId,
     comment: (input.comment ?? '').trim(),
-    items: input.items ?? [],
+    items,
+    store: (input.store ?? '').trim(),
+    photoId: input.photoId ?? null,
   };
 }
 
@@ -159,8 +167,9 @@ export async function sumByCategory(month, db) {
   /** @type {Map<string, number>} */
   const totals = new Map();
   for (const o of ops) {
-    if (o.amountEur == null) continue;
-    totals.set(o.categoryId, (totals.get(o.categoryId) ?? 0) + o.amountEur);
+    for (const [categoryId, eur] of categoryAmountsEur(o)) {
+      totals.set(categoryId, (totals.get(categoryId) ?? 0) + eur);
+    }
   }
   return totals;
 }

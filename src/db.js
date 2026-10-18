@@ -71,6 +71,14 @@ export const MIGRATIONS = [
       db.createObjectStore('photos', { keyPath: 'id' });
     },
   },
+  {
+    version: 6,
+    upgrade(db) {
+      // Справочник продуктов: единое название, основная единица, категория по умолчанию.
+      const products = db.createObjectStore('products', { keyPath: 'id' });
+      products.createIndex('nameLower', 'nameLower', { unique: true });
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

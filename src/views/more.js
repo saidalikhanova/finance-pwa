@@ -6,6 +6,7 @@ export function renderMore(root) {
     el(
       'div',
       { class: 'card list-card' },
+      menu('#/import', 'Импорт из чата'),
       menu('#/payments', 'Платежи'),
       menu('#/calendar', 'Календарь платежей'),
       menu('#/wishes', 'Желаемые покупки'),

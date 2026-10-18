@@ -9,5 +9,7 @@ import './budgets.test.js';
 import './reports.test.js';
 import './recurring.test.js';
 import './planning.test.js';
+import './items.test.js';
+import './import.test.js';
 
 run();

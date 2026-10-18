@@ -314,3 +314,24 @@ details summary { padding: 10px 0; cursor: pointer; }
 .wish-row .row-amount { margin-left: auto; }
 .photo-preview img { max-width: 100%; max-height: 240px; border-radius: var(--radius); display: block; margin-bottom: 8px; }
 .cat-row input[type=checkbox] { width: 20px; height: 20px; }
+
+/* Этап 7: позиции, импорт, быстрый ввод */
+.textarea { min-height: 120px; padding: 10px 12px; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+.items-editor { margin-top: 8px; }
+.item-row { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.item-row:last-child { border-bottom: 0; }
+.item-line { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.item-line .input, .item-line .select { min-width: 0; }
+.input-sm { flex: 0 0 72px; padding: 0 8px; min-height: 40px; font-size: 14px; }
+select.input-sm { flex: 0 0 64px; }
+.item-line .select:not(.input-sm) { flex: 1; min-height: 40px; font-size: 14px; }
+.item-line .input:not(.input-sm) { flex: 1; }
+.select-missing { border-color: var(--warn); }
+.items-total { margin-left: auto; font-weight: 600; align-self: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.chip { min-height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.chip.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.quick-form { display: flex; gap: 8px; margin: 8px 0; }
+.quick-form .input { flex: 1; }
+.quick-form[hidden] { display: none; }
+.toast { white-space: pre-line; }

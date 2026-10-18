@@ -15,6 +15,7 @@ import { renderPlannedForm } from './views/planned-form.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderWishes } from './views/wishes.js';
 import { renderWishForm } from './views/wish-form.js';
+import { renderImport } from './views/import.js';
 import { generateDue } from './repo/recurring.js';
 import { todayISO } from './repo/operations.js';
 import { toast } from './ui.js';
@@ -33,6 +34,7 @@ register('/planned/new', { title: 'Разовый платёж', back: '/payment
 register('/planned/:id', { title: 'Разовый платёж', back: '/payments', tab: '/more', render: renderPlannedForm });
 register('/calendar', { title: 'Календарь платежей', back: '/more', tab: '/more', render: renderCalendar });
 register('/wishes', { title: 'Желаемые покупки', back: '/more', tab: '/more', render: renderWishes });
+register('/import', { title: 'Импорт из чата', back: '/operations', tab: '/operations', render: renderImport });
 register('/wishes/new', { title: 'Новая запись', back: '/wishes', tab: '/more', render: renderWishForm });
 register('/wishes/:id', { title: 'Желаемая покупка', back: '/wishes', tab: '/more', render: renderWishForm });
 register('/reports', { title: 'Отчёты', render: renderReports });

@@ -7,6 +7,7 @@ import { addDays } from '../dates.js';
 import { suggestRate } from '../repo/rates.js';
 import { toEurCents } from '../money.js';
 import { upcomingRow } from './calendar.js';
+import { quickEntry } from './quick-entry.js';
 
 const INSTALLED_AT = 'installedAt';
 
@@ -32,6 +33,9 @@ export async function renderHome(root) {
     if (tomorrowItems.length) parts.push(`завтра: ${tomorrowItems.map((u) => `${u.name} ${formatMoney(u.amount, u.currency)}`).join(', ')}`);
     root.append(el('a', { class: 'banner', href: '#/calendar' }, el('strong', null, 'Платежи'), el('div', { class: 'small' }, parts.join('; '))));
   }
+
+  // Быстрый ввод расхода (п. 4.11 ТЗ)
+  root.append(await quickEntry());
 
   // Ближайшие 7 дней
   const week = await listUpcoming(today, addDays(today, 6));
