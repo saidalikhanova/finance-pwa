@@ -1,4 +1,7 @@
-import { el, formatDate, formatMonth, currentMonth } from '../ui.js';
+import { el, formatDate, formatMonth, currentMonth, shiftMonth } from '../ui.js';
+import { listPlanned } from '../repo/planned.js';
+import { expectedStatus, incomeExpectations } from '../expected.js';
+import { expectedRow } from './budget.js';
 import { getDb, getSetting, setSetting } from '../db.js';
 import { formatMoney, toEurCents } from '../money.js';
 import { listUpcoming } from '../repo/upcoming.js';
@@ -67,6 +70,30 @@ export async function renderHome(root) {
     );
   }
   root.append(hero);
+
+  // Ожидаемые поступления: этот и следующий месяц, задержанные — отдельно
+  const nextMonth = shiftMonth(month, 1);
+  const pendingIncome = await listPlanned({ to: monthRange(nextMonth).to, type: 'income' }, db);
+  if (pendingIncome.length) {
+    const rateNow = (await suggestRate(today, db))?.rate ?? null;
+    const toEur = (/** @type {import('../repo/planned.js').PlannedPayment} */ p) => toEurCents(p.amount, p.currency, rateNow);
+    const late = pendingIncome.filter((p) => expectedStatus(p, today).status === 'overdue');
+    const sumFor = (/** @type {string} */ m) => incomeExpectations(pendingIncome, m, toEur).pending;
+    const card = el('div', { class: 'card list-card' });
+    card.append(el('div', { class: 'hero-label', style: 'padding-top:12px' }, 'Ожидаемые поступления'));
+    const lines = [[month, sumFor(month)], [nextMonth, sumFor(nextMonth)]].filter(([, v]) => v);
+    for (const [m, v] of lines) {
+      card.append(el('div', { class: 'cat-row' }, el('span', { class: 'cat-name' }, `${m === month ? 'В этом месяце' : formatMonth(String(m))}`), el('strong', { class: 'income' }, formatMoney(Number(v), 'EUR'))));
+    }
+    if (late.length) {
+      card.append(el('div', { class: 'small warn', style: 'padding:8px 0 4px' }, `Задерживается: ${late.length}`));
+      const list = el('div', { class: 'list', style: 'margin:0 -16px 12px;border-radius:0;box-shadow:none;border-left:0;border-right:0' });
+      for (const p of late) list.append(expectedRow(p, today, rateNow));
+      card.append(list);
+    }
+    card.append(el('a', { class: 'menu-row', href: '#/budget' }, 'Все поступления в бюджете', el('span', null, '›')));
+    root.append(card);
+  }
 
   // Круг расходов по категориям (нажатие — операции категории)
   const byCategory = expensesByCategory(monthOps, new Map(categories.map((c) => [c.id, c])));

@@ -35,6 +35,8 @@ export function normalizeSchedule(input) {
     endType,
     endDate: endType === 'date' ? /** @type {string} */ (input.endDate) : null,
     count: endType === 'count' ? /** @type {number} */ (input.count) : null,
+    // Только для доходов: не записывать сразу, а ждать подтверждения «Получено»
+    confirm: input.type === 'income' && Boolean(input.confirm),
   };
 }
 
@@ -155,10 +157,31 @@ export async function generateDue(today, db) {
       for (const o of due) rates.set(o.date, (await suggestRate(o.date, d))?.rate ?? null);
     }
 
-    const tx = d.transaction(['operations', 'recurring'], 'readwrite');
+    const tx = d.transaction(['operations', 'recurring', 'planned'], 'readwrite');
     const ops = tx.objectStore('operations');
     const now = new Date().toISOString();
     for (const o of due) {
+      if (s.confirm) {
+        // Доход «с подтверждением»: создаётся ожидаемое поступление, а не операция
+        tx.objectStore('planned').put({
+          id: crypto.randomUUID(),
+          name: s.name,
+          type: s.type,
+          amount: s.amount,
+          currency: s.currency,
+          categoryId: s.categoryId,
+          date: o.date,
+          dateKind: 'day',
+          movedFrom: null,
+          recurringId: s.id,
+          done: false,
+          operationId: null,
+          receivedDate: null,
+          receivedAmount: null,
+          createdAt: now,
+        });
+        continue;
+      }
       const rate = s.currency === 'KZT' ? rates.get(o.date) ?? null : null;
       ops.put({
         id: crypto.randomUUID(),

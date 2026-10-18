@@ -99,9 +99,12 @@ export async function renderBudgetLine(root, params) {
     ...(isExpense
       ? [el('label', { class: 'field' }, limitLabel, limitInput, limitPreview, el('p', { class: 'muted small' }, 'Предупреждение при 80 % и при превышении. Пустое поле — без лимита.'))]
       : []),
-    el('p', { class: 'muted small' }, isExpense ? 'План — сколько ожидаете потратить; факт считается из записанных расходов.' : 'План — сколько ожидаете получить; факт считается из записанных доходов. Чтобы доход попал в факт, запишите его кнопкой ниже.'),
+    el('p', { class: 'muted small' }, isExpense ? 'План — сколько ожидаете потратить; факт считается из записанных расходов.' : 'Здесь — общий план, если не хотите расписывать по поступлениям. Ожидаемые доходы (кнопка «+ Ожидаемый доход» в бюджете) добавляются к нему автоматически. Факт считается из полученных доходов.'),
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
-    ...(isExpense ? [] : [el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/add?type=income&category=${categoryId}&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, 'Записать доход')]),
+    ...(isExpense ? [] : [
+      el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/planned/new?type=income&category=${categoryId}&month=${month}&from=budget` }, '+ Ожидаемый доход'),
+      el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/add?type=income&category=${categoryId}&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, '+ Уже получен'),
+    ]),
     el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, 'Операции категории за месяц'),
   );
   root.append(form);

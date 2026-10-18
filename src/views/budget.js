@@ -1,8 +1,10 @@
-import { el, avatar, toast, confirmDialog, formatMonth, shiftMonth, currentMonth } from '../ui.js';
+import { el, avatar, toast, confirmDialog, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney } from '../money.js';
 import { listCategories } from '../repo/categories.js';
 import { getBudget, listBudgetMonths, copyBudget } from '../repo/budgets.js';
-import { sumByCategory, todayISO } from '../repo/operations.js';
+import { sumByCategory, todayISO, monthRange } from '../repo/operations.js';
+import { listPlanned } from '../repo/planned.js';
+import { incomeExpectations, expectedStatus, whenLabel } from '../expected.js';
 import { limitStatus, pluralDays } from '../limits.js';
 import { listWishes, planWishes } from '../repo/wishes.js';
 import { suggestRate } from '../repo/rates.js';
@@ -45,6 +47,13 @@ export async function renderBudget(root) {
     ]);
     const byCat = new Map(lines.map((l) => [l.categoryId, l]));
     const today = todayISO();
+    // Ожидаемые поступления месяца: входят в план доходов
+    const rate = (await suggestRate(today))?.rate ?? null;
+    const { from, to } = monthRange(month);
+    const monthIncome = await listPlanned({ from, to, includeDone: true, type: 'income' });
+    const exp = incomeExpectations(monthIncome, month, (p) => toEurCents(p.amount, p.currency, rate));
+    // В текущем месяце показываем и задержанные с прошлых месяцев
+    const lateFromBefore = month === today.slice(0, 7) ? (await listPlanned({ to: `${month}-00`, type: 'income' })) : [];
     body.innerHTML = '';
 
     // Копирование бюджета из другого месяца
@@ -74,7 +83,7 @@ export async function renderBudget(root) {
       const line = byCat.get(c.id);
       const f = fact.get(c.id) ?? 0;
       if (c.kind === 'income') {
-        planIncome += line?.planned ?? 0;
+        planIncome += (line?.planned ?? 0) + (exp.byCategory.get(c.id)?.planned ?? 0);
         factIncome += f;
       } else {
         planExpense += line?.planned ?? 0;
@@ -89,7 +98,8 @@ export async function renderBudget(root) {
         totalRow('Доходы', planIncome, factIncome, 'income'),
         totalRow('Расходы', planExpense, factExpense),
         totalRow('Баланс', planIncome - planExpense, factIncome - factExpense, '', true),
-        el('p', { class: 'muted small', style: 'margin:8px 0 0' }, 'План вы задаёте сами, нажав на категорию. Факт считается из записанных операций.'),
+        exp.pending ? el('p', { class: 'small', style: 'margin:8px 0 0' }, `Ещё ожидается поступлений: ${formatMoney(exp.pending, 'EUR')}`) : null,
+        el('p', { class: 'muted small', style: 'margin:8px 0 0' }, 'План вы задаёте сами, нажав на категорию; ожидаемые доходы добавляются к плану. Факт считается из записанных операций.'),
       ),
     );
 
@@ -105,30 +115,40 @@ export async function renderBudget(root) {
     body.append(expenseList);
 
     // Доходы
-    body.append(el('div', { class: 'row-top', style: 'align-items:center' },
+    body.append(
       el('h2', { class: 'section-title' }, 'Доходы'),
-      el('a', { class: 'btn btn-secondary btn-small', href: `#/add?type=income&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, '+ Записать доход'),
-    ));
+      el('div', { class: 'btn-row' },
+        el('a', { class: 'btn btn-secondary btn-small', href: `#/planned/new?type=income&month=${month}&from=budget` }, '+ Ожидаемый'),
+        el('a', { class: 'btn btn-secondary btn-small', href: `#/add?type=income&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, '+ Уже получен'),
+      ),
+    );
     const incomeList = el('div', { class: 'list' });
     body.append(incomeList);
     for (const c of categories.filter((c) => c.kind === 'income')) {
       const line = byCat.get(c.id);
       const f = fact.get(c.id) ?? 0;
-      if (c.archived && !line && !f) continue;
+      const e = exp.byCategory.get(c.id);
+      if (c.archived && !line && !f && !e) continue;
+      const plan = (line?.planned ?? 0) + (e?.planned ?? 0);
+      const sub = line?.planned == null && !e ? 'план не задан' : [`план ${formatMoney(plan, 'EUR')}`, e?.pending ? `ожидается ${formatMoney(e.pending, 'EUR')}` : ''].filter(Boolean).join(' · ');
       incomeList.append(
         el(
           'a',
           { class: 'row', href: `#/budget/${month}/${c.id}` },
           avatar(c.name, { income: true }),
-          el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name)),
-          el(
-            'div',
-            { class: 'row-amount' },
-            el('div', { class: 'income' }, formatMoney(f, 'EUR')),
-            el('div', { class: 'muted small' }, line?.planned != null ? `план ${formatMoney(line.planned, 'EUR')}` : 'план не задан'),
-          ),
+          el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), el('div', { class: 'muted small' }, sub)),
+          el('div', { class: 'row-amount' }, el('div', { class: 'income' }, formatMoney(f, 'EUR')), el('div', { class: 'muted small' }, 'получено')),
         ),
       );
+    }
+
+    // Ожидаемые поступления месяца (и задержанные с прошлых месяцев)
+    const expectedRows = [...lateFromBefore, ...monthIncome];
+    if (expectedRows.length) {
+      body.append(el('h2', { class: 'section-title' }, 'Ожидаемые поступления'));
+      const list = el('div', { class: 'list' });
+      for (const p of expectedRows) list.append(expectedRow(p, today, rate));
+      body.append(list);
     }
 
     // Желаемые покупки рядом с бюджетом (п. 4.14 ТЗ)
@@ -137,7 +157,6 @@ export async function renderBudget(root) {
     if (wishes.length || plannedWishes.length) {
       body.append(el('h2', { class: 'section-title' }, 'Желаемые покупки'));
       const card = el('div', { class: 'card list-card' });
-      const rate = (await suggestRate(today))?.rate ?? null;
       const priceEur = (/** @type {import('../repo/wishes.js').Wish} */ w) => (w.price == null ? null : toEurCents(w.price, w.currency, rate));
       /** @type {HTMLInputElement[]} */
       const boxes = [];
@@ -192,6 +211,38 @@ export async function renderBudget(root) {
   }
 
   await refresh();
+}
+
+/**
+ * Строка ожидаемого поступления со статусом и кнопкой «Получено».
+ * @param {import('../repo/planned.js').PlannedPayment} p
+ * @param {string} today
+ * @param {number | null} rate
+ */
+export function expectedRow(p, today, rate) {
+  const st = expectedStatus(p, today);
+  const label =
+    st.status === 'received'
+      ? `получено ${p.receivedDate ? formatDate(p.receivedDate) : ''}`
+      : st.status === 'overdue'
+        ? `задерживается ${st.daysLate} дн.`
+        : `ожидается ${whenLabel(p, formatDate)}`;
+  const eur = p.currency === 'KZT' ? toEurCents(p.amount, 'KZT', rate) : null;
+  const shown = st.status === 'received' && p.receivedAmount != null ? p.receivedAmount : p.amount;
+  return el(
+    'div',
+    { class: `row expected-row expected-${st.status}` },
+    avatar(p.name, { income: true }),
+    el('a', { class: 'row-main', href: `#/planned/${p.id}?from=budget`, style: 'color:inherit;text-decoration:none' },
+      el('div', null, p.name),
+      el('div', { class: 'small' }, el('span', { class: `chip-status chip-${st.status}` }, label), p.movedFrom ? el('span', { class: 'muted' }, ` · перенесено с ${formatMonth(p.movedFrom).toLowerCase()}`) : null),
+    ),
+    el('div', { class: 'row-amount' },
+      el('div', { class: st.status === 'received' ? 'income' : '' }, formatMoney(shown, p.currency)),
+      eur != null && st.status !== 'received' ? el('div', { class: 'muted small' }, `≈ ${formatMoney(eur, 'EUR')}`) : null,
+      st.status !== 'received' ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?planned=${p.id}` }, 'Получено') : null,
+    ),
+  );
 }
 
 /**

@@ -392,3 +392,18 @@ select.input-sm { flex: 0 0 64px; }
 .segmented-compact button { min-width: 0; min-height: 44px; }
 .rate-line { margin: 0 0 12px; }
 .rate-line .link-btn { padding: 0; }
+
+/* Ожидаемые поступления */
+.expected-row { align-items: center; }
+.expected-row .row-amount { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.expected-btn { min-height: 32px; padding: 0 12px; font-size: 13px; }
+.chip-status { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+.chip-expected { background: var(--surface-2); color: var(--text-muted); }
+.chip-overdue { background: var(--warn-soft); color: var(--warn); }
+.chip-received { background: var(--ok-soft); color: var(--ok); }
+.expected-received { opacity: .75; }
+.status-card { border-left: 4px solid var(--text-muted); }
+.status-card.status-overdue { border-left-color: var(--warn); background: var(--warn-soft); }
+.status-card.status-received { border-left-color: var(--ok); background: var(--ok-soft); }
+.status-card.status-expected { border-left-color: var(--accent); }
+details[hidden] { display: none; }

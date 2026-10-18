@@ -8,7 +8,7 @@ import { getWish, updateWish } from '../repo/wishes.js';
 import { itemsEditor } from './items-editor.js';
 import { ensureProducts } from '../repo/products.js';
 import { compressImage, savePhoto, getPhoto, deletePhoto } from '../photos.js';
-import { getPlanned, updatePlanned } from '../repo/planned.js';
+import { getPlanned, markReceived } from '../repo/planned.js';
 import { navigate } from '../router.js';
 import {
   createOperation,
@@ -41,7 +41,15 @@ export async function renderOperationForm(root, params) {
   const preset = wish
     ? { type: 'expense', amount: wish.price, currency: wish.currency, categoryId: wish.categoryId, comment: wish.name, date: null }
     : plannedPay
-      ? { type: plannedPay.type, amount: plannedPay.amount, currency: plannedPay.currency, categoryId: plannedPay.categoryId, comment: plannedPay.name, date: plannedPay.date }
+      ? {
+          type: plannedPay.type,
+          amount: plannedPay.amount,
+          currency: plannedPay.currency,
+          categoryId: plannedPay.categoryId,
+          comment: plannedPay.name,
+          // Пришло позже срока или срок «в течение месяца» — по умолчанию сегодня
+          date: plannedPay.dateKind === 'month' || plannedPay.date < todayISO() ? todayISO() : plannedPay.date,
+        }
       : isNew && (params.amount || params.category || params.date || params.type)
         ? { type: params.type === 'income' ? 'income' : 'expense', amount: Number(params.amount) || null, currency: params.currency === 'KZT' ? 'KZT' : 'EUR', categoryId: params.category ?? null, comment: '', date: params.date ?? null }
         : null;
@@ -50,7 +58,9 @@ export async function renderOperationForm(root, params) {
   const hint = wish
     ? el('p', { class: 'muted small' }, `Покупка из списка желаний: «${wish.name}». Проверьте сумму и сохраните.`)
     : plannedPay
-      ? el('p', { class: 'muted small' }, `Запланированный платёж «${plannedPay.name}». Проверьте сумму и дату.`)
+      ? el('p', { class: 'muted small' }, plannedPay.type === 'income'
+          ? `Ожидаемый доход «${plannedPay.name}». Укажите, сколько и когда фактически пришло — это попадёт в факт.`
+          : `Запланированный платёж «${plannedPay.name}». Проверьте сумму и дату.`)
       : null;
 
   // Тип
@@ -64,6 +74,7 @@ export async function renderOperationForm(root, params) {
     (v) => {
       typeInput.value = v;
       fillCategories();
+      itemsDetails.hidden = v !== 'expense';
     },
   );
 
@@ -170,7 +181,7 @@ export async function renderOperationForm(root, params) {
     currency: () => /** @type {'EUR' | 'KZT'} */ (currencyInput.value),
     onChange: syncAmountWithItems,
   });
-  const itemsDetails = el('details', { class: 'card list-card', open: Boolean(existing?.items?.length) },
+  const itemsDetails = el('details', { class: 'card list-card', open: Boolean(existing?.items?.length), hidden: typeInput.value !== 'expense' },
     el('summary', null, 'Позиции (чек)'),
     el('p', { class: 'muted small' }, 'Для покупки из нескольких продуктов с разными категориями. Лимиты и отчёты учитывают категорию каждой позиции.'),
     editor.el,
@@ -307,7 +318,7 @@ export async function renderOperationForm(root, params) {
       } else {
         const op = await createOperation(data);
         if (wish) await updateWish(wish.id, { status: 'bought', boughtAt: data.date, actualPrice: data.amount, operationId: op.id });
-        if (plannedPay) await updatePlanned(plannedPay.id, { done: true, operationId: op.id });
+        if (plannedPay) await markReceived(plannedPay.id, { operationId: op.id, date: data.date, amount: data.amount });
       }
       let message = existing ? 'Изменения сохранены' : 'Операция сохранена';
       if (rate) {
@@ -337,8 +348,8 @@ export async function renderOperationForm(root, params) {
           return;
         }
       }
-      toast(message);
-      navigate('/operations');
+      toast(plannedPay?.type === 'income' ? 'Получено — записано в факт' : message);
+      navigate(plannedPay?.type === 'income' ? '/budget' : '/operations');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось сохранить', { error: true });
     }

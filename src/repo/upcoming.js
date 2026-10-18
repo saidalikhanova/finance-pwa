@@ -18,7 +18,8 @@ import { listPlanned } from './planned.js';
  */
 
 /**
- * Платежи в диапазоне дат (включительно), по дате.
+ * Платежи в диапазоне дат (включительно), по дате. Ожидаемые поступления
+ * «в течение месяца» сюда не входят — у них нет конкретного дня.
  * @param {string} from
  * @param {string} to
  * @param {IDBDatabase} [db]
@@ -31,11 +32,14 @@ export async function listUpcoming(from, to, db) {
   for (const s of await listSchedules(d)) {
     if (s.status !== 'active') continue;
     // Показываем и уже созданные на эти даты платежи: с номера 0, но не раньше from.
-    for (const o of occurrences(s, 0, addDays(from, -1), to)) {
+    // У доходов «с подтверждением» созданные периоды уже лежат в ожидаемых поступлениях.
+    const fromN = s.confirm ? s.generatedCount : 0;
+    for (const o of occurrences(s, fromN, addDays(from, -1), to)) {
       out.push({ date: o.date, name: s.name, type: s.type, amount: s.amount, currency: s.currency, categoryId: s.categoryId, source: 'recurring', refId: s.id });
     }
   }
   for (const p of await listPlanned({ from, to }, d)) {
+    if (p.dateKind === 'month') continue;
     out.push({ date: p.date, name: p.name, type: p.type, amount: p.amount, currency: p.currency, categoryId: p.categoryId, source: 'planned', refId: p.id });
   }
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.name.localeCompare(b.name, 'ru')));

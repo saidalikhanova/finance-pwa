@@ -25,7 +25,13 @@ export async function renderPaymentForm(root, params) {
   const typeToggle = segmented([['expense', 'Расход'], ['income', 'Доход']], typeInput.value, (v) => {
     typeInput.value = v;
     categorySelect.fill(v);
+    confirmField.hidden = v !== 'income';
   });
+  const confirmBox = /** @type {HTMLInputElement} */ (el('input', { type: 'checkbox', checked: Boolean(existing?.confirm) }));
+  const confirmField = el('label', { class: 'cat-row field', hidden: typeInput.value !== 'income' },
+    confirmBox,
+    el('span', { class: 'cat-name' }, 'Ждать подтверждения', el('div', { class: 'muted small' }, 'Для дохода, который приходит не точно в срок: каждый период появится как «ожидается», а в факт попадёт, когда вы нажмёте «Получено».')),
+  );
   const amountInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,00', value: existing ? amountToInput(existing.amount) : '' });
   const currencyInput = el('input', { type: 'hidden', value: existing?.currency ?? 'EUR' });
   const currencyToggle = segmented([['EUR', '€'], ['KZT', '₸']], currencyInput.value, (v) => (currencyInput.value = v));
@@ -68,6 +74,7 @@ export async function renderPaymentForm(root, params) {
     field('Срок действия', endToggle),
     endDateField,
     countField,
+    confirmField,
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
   );
   if (existing) form.append(el('p', { class: 'muted small' }, `Создано операций: ${existing.generatedCount}. Изменения действуют со следующего платежа; созданные операции не меняются.`));
@@ -94,6 +101,7 @@ export async function renderPaymentForm(root, params) {
       endType: /** @type {any} */ (endInput.value),
       endDate: endDateInput.value || null,
       count: Number(countInput.value),
+      confirm: confirmBox.checked,
     };
     try {
       if (existing) await updateSchedule(existing.id, data);

@@ -79,6 +79,21 @@ export const MIGRATIONS = [
       products.createIndex('nameLower', 'nameLower', { unique: true });
     },
   },
+  {
+    version: 7,
+    upgrade(_db, tx) {
+      // Ожидаемые поступления: у разовых платежей появился вид даты
+      // ('day' — точная дата, 'month' — «где-то в ноябре»). Старые записи — точная дата.
+      const req = tx.objectStore('planned').openCursor();
+      req.onsuccess = () => {
+        const cur = req.result;
+        if (!cur) return;
+        const v = cur.value;
+        if (!v.dateKind) cur.update({ ...v, dateKind: 'day', movedFrom: v.movedFrom ?? null });
+        cur.continue();
+      };
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

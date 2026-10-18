@@ -21,6 +21,7 @@ import { addDays, addMonthsKeepDay } from './dates.js';
  * @property {EndType} endType
  * @property {string | null} endDate — для endType = 'date'
  * @property {number | null} count — число платежей, для endType = 'count'
+ * @property {boolean} [confirm] — доход «ждать подтверждения»: вместо операции создаётся ожидаемое поступление
  * @property {'active' | 'paused' | 'finished'} status
  * @property {number} generatedCount — сколько операций уже создано
  * @property {string | null} lastGeneratedDate — дата последней созданной операции
