@@ -256,3 +256,31 @@ details summary { padding: 10px 0; cursor: pointer; }
 .bar-over .bar-fill { background: var(--danger); }
 .copy-row { margin-bottom: 12px; }
 .copy-row-compact .add-row { padding: 0; }
+
+/* Отчёты */
+:root { --chart-income: #1baf7a; --chart-expense: #2a78d6; }
+@media (prefers-color-scheme: dark) { :root { --chart-income: #199e70; --chart-expense: #3987e5; } }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile-value { font-weight: 600; font-size: 17px; white-space: nowrap; }
+.bars { padding: 8px 16px; }
+.bar-row { padding: 8px 0; }
+.bar-row-head { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+.bar-row-amount { white-space: nowrap; }
+.hbar { height: 8px; background: var(--border); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+.hbar-fill { height: 100%; background: var(--chart-expense); border-radius: 4px; }
+.chart { width: 100%; height: auto; display: block; }
+.chart-income { fill: var(--chart-income); }
+.chart-expense { fill: var(--chart-expense); }
+.chart-axis { stroke: var(--border); stroke-width: 1; }
+.chart-label { fill: var(--text-muted); font-size: 11px; }
+.legend { display: flex; gap: 16px; margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.swatch-income { background: var(--chart-income); }
+.swatch-expense { background: var(--chart-expense); }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th { font-weight: 500; color: var(--text-muted); text-align: left; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.table td { padding: 8px 0 8px 6px; border-bottom: 1px solid var(--border); }
+.table td:first-child, .table th:first-child { padding-left: 0; }
+.table tr:last-child td { border-bottom: 0; }
+.table .num { text-align: right; white-space: nowrap; }

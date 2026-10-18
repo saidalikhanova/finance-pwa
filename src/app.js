@@ -8,7 +8,7 @@ import { renderMore } from './views/more.js';
 import { renderBudget } from './views/budget.js';
 import { renderBudgetLine } from './views/budget-line.js';
 import { renderRates } from './views/rates.js';
-import { placeholder } from './views/placeholder.js';
+import { renderReports } from './views/reports.js';
 
 register('/', { title: 'Главная', render: renderHome });
 register('/operations', { title: 'Операции', render: renderOperations });
@@ -17,7 +17,7 @@ register('/operations/:id', { title: 'Операция', back: '/operations', ta
 register('/budget', { title: 'Бюджет', render: renderBudget });
 register('/budget/:month/:categoryId', { title: 'План и лимит', back: '/budget', tab: '/budget', render: renderBudgetLine });
 register('/rates', { title: 'Курсы', back: '/more', tab: '/more', render: renderRates });
-register('/reports', { title: 'Отчёты', ...placeholder('Итоги за месяц и расходы по категориям.', 5) });
+register('/reports', { title: 'Отчёты', render: renderReports });
 register('/more', { title: 'Ещё', render: renderMore });
 register('/categories', { title: 'Категории', back: '/more', tab: '/more', render: renderCategories });
 
