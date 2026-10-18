@@ -29,7 +29,7 @@ import { toast } from './ui.js';
 
 register('/', { title: 'Главная', render: renderHome });
 register('/operations', { title: 'Операции', render: renderOperations });
-register('/add', { title: 'Новый расход', back: '/operations', tab: '/operations', render: renderQuickAdd });
+register('/add', { title: 'Добавить', back: '/operations', tab: '/operations', render: renderQuickAdd });
 register('/operations/new', { title: 'Новая операция', back: '/operations', tab: '/operations', render: renderOperationForm });
 register('/operations/:id', { title: 'Операция', back: '/operations', tab: '/operations', render: renderOperationForm });
 register('/budget', { title: 'Бюджет', render: renderBudget });

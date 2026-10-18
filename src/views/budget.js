@@ -89,6 +89,7 @@ export async function renderBudget(root) {
         totalRow('Доходы', planIncome, factIncome, 'income'),
         totalRow('Расходы', planExpense, factExpense),
         totalRow('Баланс', planIncome - planExpense, factIncome - factExpense, '', true),
+        el('p', { class: 'muted small', style: 'margin:8px 0 0' }, 'План вы задаёте сами, нажав на категорию. Факт считается из записанных операций.'),
       ),
     );
 
@@ -104,7 +105,10 @@ export async function renderBudget(root) {
     body.append(expenseList);
 
     // Доходы
-    body.append(el('h2', { class: 'section-title' }, 'Доходы'));
+    body.append(el('div', { class: 'row-top', style: 'align-items:center' },
+      el('h2', { class: 'section-title' }, 'Доходы'),
+      el('a', { class: 'btn btn-secondary btn-small', href: `#/add?type=income&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, '+ Записать доход'),
+    ));
     const incomeList = el('div', { class: 'list' });
     body.append(incomeList);
     for (const c of categories.filter((c) => c.kind === 'income')) {

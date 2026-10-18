@@ -99,7 +99,9 @@ export async function renderBudgetLine(root, params) {
     ...(isExpense
       ? [el('label', { class: 'field' }, limitLabel, limitInput, limitPreview, el('p', { class: 'muted small' }, 'Предупреждение при 80 % и при превышении. Пустое поле — без лимита.'))]
       : []),
+    el('p', { class: 'muted small' }, isExpense ? 'План — сколько ожидаете потратить; факт считается из записанных расходов.' : 'План — сколько ожидаете получить; факт считается из записанных доходов. Чтобы доход попал в факт, запишите его кнопкой ниже.'),
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
+    ...(isExpense ? [] : [el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/add?type=income&category=${categoryId}&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, 'Записать доход')]),
     el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, 'Операции категории за месяц'),
   );
   root.append(form);
