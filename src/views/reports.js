@@ -1,4 +1,4 @@
-import { el, formatMonth, shiftMonth, currentMonth } from '../ui.js';
+import { el, emptyState, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney } from '../money.js';
 import { listCategories } from '../repo/categories.js';
 import { listOperations, monthRange } from '../repo/operations.js';
@@ -57,15 +57,15 @@ export async function renderReports(root) {
     body.append(el('h2', { class: 'section-title' }, 'Расходы по категориям'));
     const rows = expensesByCategory(monthOps, byId);
     if (!rows.length) {
-      body.append(el('p', { class: 'muted' }, 'За этот месяц расходов нет.'));
+      body.append(emptyState('basket', 'За этот месяц расходов нет', 'Добавить расход', '#/add'));
     } else {
       const max = rows[0].amount;
       const table = el('div', { class: 'card bars' });
       for (const r of rows) {
         table.append(
           el(
-            'div',
-            { class: 'bar-row', title: `${r.name}: ${formatMoney(r.amount, 'EUR')} (${r.share} %)` },
+            'a',
+            { class: 'bar-row', href: `#/operations?month=${month}&category=${r.categoryId}`, title: `${r.name}: ${formatMoney(r.amount, 'EUR')} (${r.share} %)` },
             el('div', { class: 'bar-row-head' }, el('span', null, r.name), el('span', { class: 'bar-row-amount' }, formatMoney(r.amount, 'EUR'), el('span', { class: 'muted small' }, ` ${r.share} %`))),
             el('div', { class: 'hbar' }, el('div', { class: 'hbar-fill', style: `width:${Math.max(1, (r.amount * 100) / max)}%` })),
           ),

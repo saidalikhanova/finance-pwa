@@ -1,4 +1,4 @@
-import { el, formatDate } from '../ui.js';
+import { el, emptyState, formatDate } from '../ui.js';
 import { formatMoney, toEurCents } from '../money.js';
 import { listWishes, WISH_STATUS_LABEL, PRIORITY_LABEL, PRIORITY_ORDER } from '../repo/wishes.js';
 import { listCategories } from '../repo/categories.js';
@@ -86,7 +86,7 @@ export async function renderWishes(root) {
 
     list.innerHTML = '';
     if (!rows.length) {
-      list.append(el('p', { class: 'muted empty' }, 'Записей нет.'));
+      list.append(state.status === 'want' ? emptyState('gift', 'Здесь будут вещи, которые хочется купить', 'Добавить запись', '#/wishes/new') : el('p', { class: 'muted empty' }, 'Записей нет.'));
       return;
     }
     const group = el('div', { class: 'list' });

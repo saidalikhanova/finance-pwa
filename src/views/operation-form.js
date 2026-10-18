@@ -42,7 +42,9 @@ export async function renderOperationForm(root, params) {
     ? { type: 'expense', amount: wish.price, currency: wish.currency, categoryId: wish.categoryId, comment: wish.name, date: null }
     : plannedPay
       ? { type: plannedPay.type, amount: plannedPay.amount, currency: plannedPay.currency, categoryId: plannedPay.categoryId, comment: plannedPay.name, date: plannedPay.date }
-      : null;
+      : isNew && (params.amount || params.category || params.date)
+        ? { type: 'expense', amount: Number(params.amount) || null, currency: 'EUR', categoryId: params.category ?? null, comment: '', date: params.date ?? null }
+        : null;
 
   const form = el('form', { class: 'form', novalidate: true, onsubmit: onSubmit });
   const hint = wish

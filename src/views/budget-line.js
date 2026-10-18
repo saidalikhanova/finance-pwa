@@ -55,6 +55,7 @@ export async function renderBudgetLine(root, params) {
         ]
       : []),
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
+    el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, 'Операции категории за месяц'),
   );
   root.append(form);
   plannedInput.focus();

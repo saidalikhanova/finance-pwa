@@ -49,6 +49,23 @@ export function avatar(name, opts = {}) {
 }
 
 /**
+ * Пустое состояние: иконка, одна фраза и действие.
+ * @param {string} icon — ключ из icons.js
+ * @param {string} text
+ * @param {string} [actionLabel]
+ * @param {string} [href]
+ */
+export function emptyState(icon, text, actionLabel, href) {
+  return el(
+    'div',
+    { class: 'empty-state' },
+    el('div', { class: 'empty-icon' }, iconSvg(icon, 28)),
+    el('p', { class: 'muted' }, text),
+    actionLabel && href ? el('a', { class: 'btn btn-secondary btn-small', href }, actionLabel) : null,
+  );
+}
+
+/**
  * Короткое сообщение внизу экрана.
  * @param {string} text
  * @param {{ error?: boolean, ms?: number }} [opts]

@@ -5,7 +5,9 @@ import { listUpcoming } from '../repo/upcoming.js';
 import { listOperations, monthRange, sumByCategory, todayISO } from '../repo/operations.js';
 import { getBudget } from '../repo/budgets.js';
 import { listCategories } from '../repo/categories.js';
-import { summary } from '../reports.js';
+import { summary, expensesByCategory } from '../reports.js';
+import { donut } from './donut.js';
+import { emptyState } from '../ui.js';
 import { limitStatus } from '../limits.js';
 import { addDays } from '../dates.js';
 import { suggestRate } from '../repo/rates.js';
@@ -53,12 +55,23 @@ export async function renderHome(root) {
   );
   if (limitTotal > 0) {
     const st = limitStatus(limitTotal, limitSpent, month, today);
+    // «Можно потратить сегодня»: остаток по всем лимитам, делённый на дни до конца месяца
+    const grid = hero.querySelector('.hero-grid');
+    grid?.append(
+      el('div', null, el('div', { class: 'small' }, 'Можно сегодня'), el('strong', { class: st.level === 'over' ? 'over' : st.level === 'warn' ? 'warn' : 'income' }, st.perDay != null ? formatMoney(st.perDay, 'EUR') : st.remaining < 0 ? 'лимиты превышены' : '—')),
+      el('div', null, el('div', { class: 'small' }, 'Осталось по лимитам'), el('strong', { class: st.remaining < 0 ? 'over' : '' }, formatMoney(st.remaining, 'EUR'))),
+    );
     hero.append(
       el('div', { class: `bar bar-${st.level}` }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, st.percent)}%` })),
       el('div', { class: 'small muted' }, `Лимиты: ${formatMoney(limitSpent, 'EUR')} из ${formatMoney(limitTotal, 'EUR')} (${st.percent} %)${limitOver ? ` · превышено: ${limitOver}` : ''}`),
     );
   }
   root.append(hero);
+
+  // Круг расходов по категориям (нажатие — операции категории)
+  const byCategory = expensesByCategory(monthOps, new Map(categories.map((c) => [c.id, c])));
+  const ring = donut(byCategory, month);
+  if (ring) root.append(el('div', { class: 'card' }, el('div', { class: 'hero-label', style: 'margin-bottom:8px' }, 'На что уходят деньги'), ring));
 
   // Напоминание о резервной копии (п. 4.8 ТЗ)
   const reminder = backupReminder({
@@ -97,7 +110,7 @@ export async function renderHome(root) {
   const week = await listUpcoming(today, addDays(today, 6));
   root.append(el('h2', { class: 'section-title' }, 'Платежи на 7 дней'));
   if (!week.length) {
-    root.append(el('p', { class: 'muted', style: 'margin:0 4px 12px' }, 'Платежей не запланировано.'));
+    root.append(emptyState('repeat', 'На ближайшую неделю платежей нет', 'Добавить платёж', '#/payments/new'));
   } else {
     let totalEur = 0;
     let unknown = 0;

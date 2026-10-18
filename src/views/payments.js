@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, formatDate } from '../ui.js';
+import { el, emptyState, toast, confirmDialog, formatDate } from '../ui.js';
 import { formatMoney } from '../money.js';
 import { listSchedules, setScheduleStatus, deleteSchedule } from '../repo/recurring.js';
 import { listPlanned, deletePlanned } from '../repo/planned.js';
@@ -33,7 +33,7 @@ export async function renderPayments(root) {
 
     // Повторяющиеся
     body.append(el('h2', { class: 'section-title' }, 'Повторяющиеся платежи'));
-    if (!schedules.length) body.append(el('p', { class: 'muted' }, 'Пока нет. Например: аренда, подписка, кредит, зарплата.'));
+    if (!schedules.length) body.append(emptyState('repeat', 'Аренда, подписки, кредит, зарплата — заведите один раз, операции будут создаваться сами', 'Добавить', '#/payments/new'));
     for (const s of schedules) {
       const next = nextOccurrence(s, addDays(today, -1));
       const rem = remaining(s);
@@ -69,7 +69,7 @@ export async function renderPayments(root) {
 
     // Разовые
     body.append(el('h2', { class: 'section-title' }, 'Разовые запланированные'));
-    if (!planned.length) body.append(el('p', { class: 'muted' }, 'Пока нет. Например: страховка, оплата кружка.'));
+    if (!planned.length) body.append(emptyState('document', 'Разовые платежи: страховка, кружок, налог — напоминание в календаре', 'Добавить', '#/planned/new'));
     for (const p of planned) {
       body.append(
         el(

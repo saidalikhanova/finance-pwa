@@ -1,4 +1,4 @@
-import { el, avatar, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
+import { el, avatar, emptyState, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney, formatRate } from '../money.js';
 import { listOperations, monthRange } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
@@ -13,7 +13,10 @@ const state = {
 };
 
 /** @param {HTMLElement} root */
-export async function renderOperations(root) {
+export async function renderOperations(root, params = {}) {
+  // Переход из круга категорий / отчёта: #/operations?month=ГГГГ-ММ&category=ID
+  if (params.month && /^\d{4}-\d{2}$/.test(params.month)) state.month = params.month;
+  if (params.category !== undefined) state.categoryId = params.category;
   const categories = await listCategories({ includeArchived: true });
   const byId = new Map(categories.map((c) => [c.id, c]));
 
@@ -59,7 +62,7 @@ export async function renderOperations(root) {
     ),
     el('div', { class: 'btn-row' }, el('a', { class: 'btn btn-secondary btn-small', href: '#/import' }, 'Импорт из чата')),
     list,
-    el('a', { class: 'fab', href: '#/operations/new', 'aria-label': 'Добавить операцию' }, '+'),
+    el('a', { class: 'fab', href: '#/add', 'aria-label': 'Добавить расход' }, '+'),
   );
 
   /** @param {number} delta */
@@ -78,7 +81,7 @@ export async function renderOperations(root) {
     list.innerHTML = '';
 
     if (!ops.length) {
-      list.append(el('p', { class: 'muted empty' }, 'За этот период операций нет.'));
+      list.append(emptyState('basket', state.categoryId || state.type ? 'По этому фильтру операций нет' : 'За этот месяц операций ещё нет', 'Добавить расход', '#/add'));
       return;
     }
 
@@ -106,7 +109,9 @@ export async function renderOperations(root) {
     for (const o of ops) {
       if (o.date !== lastDate) {
         lastDate = o.date;
-        list.append(el('h3', { class: 'date-head' }, formatDate(o.date)));
+        // Итог дня: расходы в евро за эту дату
+        const daySpent = ops.filter((x) => x.date === o.date && x.type === 'expense' && x.amountEur != null).reduce((s, x) => s + /** @type {number} */ (x.amountEur), 0);
+        list.append(el('h3', { class: 'date-head date-head-total' }, el('span', null, formatDate(o.date)), daySpent ? el('span', null, formatMoney(-daySpent, 'EUR')) : null));
         group = el('div', { class: 'list' });
         list.append(group);
       }

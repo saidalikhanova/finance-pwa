@@ -349,3 +349,35 @@ select.input-sm { flex: 0 0 64px; }
 .chip { display: inline-flex; align-items: center; gap: 8px; padding-left: 7px; }
 .chip .avatar-sm { width: 24px; height: 24px; }
 .chip.active .avatar { background: rgba(255, 255, 255, 0.25) !important; }
+
+/* Дополнения по исследованию: круг категорий, быстрый экран, итог дня, календарь трат, пустые состояния */
+.donut-wrap { display: flex; gap: 14px; align-items: center; }
+.donut { width: 140px; height: 140px; flex: none; }
+.donut-seg { cursor: pointer; transition: stroke-width .15s; }
+.donut-seg:hover { stroke-width: 22; }
+.donut-label { fill: var(--text); font-size: 15px; font-weight: 700; }
+.donut-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.donut-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: inherit; text-decoration: none; font-size: 14px; }
+.donut-row .avatar-sm { width: 22px; height: 22px; }
+.donut-row .avatar-sm .icon { width: 13px; height: 13px; }
+.donut-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.donut-sum { font-weight: 600; white-space: nowrap; }
+.quick-add { padding-top: 8px; }
+.quick-amount-wrap { position: relative; margin-bottom: 8px; }
+.quick-amount { font-size: 40px; font-weight: 700; text-align: center; min-height: 72px; padding-right: 48px; }
+.quick-currency { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 24px; color: var(--text-muted); }
+.date-head-total { display: flex; justify-content: space-between; text-transform: none; font-size: 13px; }
+.date-head-total span:first-child { text-transform: uppercase; }
+.cal-day { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.cal-spent { background: color-mix(in srgb, var(--accent) calc(var(--tint, 0) * 32%), transparent); }
+.cal-sum { font-size: 9.5px; color: var(--text-muted); margin-top: 1px; }
+.cal-selected .cal-sum { color: var(--accent-text); }
+.cal-dot { bottom: 2px; }
+.empty-state { text-align: center; padding: 22px 16px; }
+.empty-icon { width: 52px; height: 52px; margin: 0 auto 8px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.empty-state p { margin: 0 0 12px; }
+.donut-wrap { flex-direction: column; align-items: stretch; gap: 10px; }
+.donut { width: 150px; height: 150px; margin: 0 auto; }
+.donut-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
+.donut-row .muted { flex: none; }
+.donut-legend { grid-template-columns: 1fr; }
