@@ -76,10 +76,74 @@ export async function ensureProducts(wanted, db) {
 }
 
 /**
+ * Сохраняет продукт; при переименовании обновляет названия в позициях операций.
  * @param {Product} product
  * @param {IDBDatabase} [db]
  */
 export async function saveProduct(product, db) {
   const d = db ?? (await getDb());
-  await put(d, 'products', { ...product, name: normalizeName(product.name), nameLower: normalizeName(product.name).toLowerCase() });
+  const name = normalizeName(product.name);
+  if (!name) throw new Error('Укажите название продукта');
+  const dup = await findProductByName(name, d);
+  if (dup && dup.id !== product.id) throw new Error('Продукт с таким названием уже есть — используйте объединение');
+  const tx = d.transaction(['products', 'operations'], 'readwrite');
+  tx.objectStore('products').put({ ...product, name, nameLower: name.toLowerCase() });
+  await renameInOperations(tx.objectStore('operations'), product.id, product.id, name);
+  await done(tx);
+}
+
+/**
+ * Объединяет дубликаты: все позиции продукта `fromId` переводятся на `intoId`,
+ * продукт `fromId` удаляется.
+ * @param {string} fromId
+ * @param {string} intoId
+ * @param {IDBDatabase} [db]
+ * @returns {Promise<number>} — число изменённых позиций
+ */
+export async function mergeProducts(fromId, intoId, db) {
+  const d = db ?? (await getDb());
+  if (fromId === intoId) throw new Error('Выберите другой продукт');
+  const into = await getProduct(intoId, d);
+  if (!into || !(await getProduct(fromId, d))) throw new Error('Продукт не найден');
+  const tx = d.transaction(['products', 'operations'], 'readwrite');
+  const changed = await renameInOperations(tx.objectStore('operations'), fromId, intoId, into.name);
+  tx.objectStore('products').delete(fromId);
+  await done(tx);
+  return changed;
+}
+
+/**
+ * @param {IDBObjectStore} ops
+ * @param {string} fromId
+ * @param {string} toId
+ * @param {string} name
+ */
+async function renameInOperations(ops, fromId, toId, name) {
+  /** @type {import('./operations.js').Operation[]} */
+  const all = await promisify(ops.getAll());
+  let changed = 0;
+  for (const op of all) {
+    if (!op.items?.some((it) => it.productId === fromId)) continue;
+    const items = op.items.map((it) => (it.productId === fromId ? { ...it, productId: toId, name } : it));
+    ops.put({ ...op, items });
+    changed += items.filter((it) => it.productId === toId).length;
+  }
+  return changed;
+}
+
+/**
+ * Отметка «выброшено / не съедено» у позиции операции.
+ * @param {string} operationId
+ * @param {number} index
+ * @param {number} wasted — × 1000
+ * @param {IDBDatabase} [db]
+ */
+export async function setItemWasted(operationId, index, wasted, db) {
+  const d = db ?? (await getDb());
+  if (!Number.isSafeInteger(wasted) || wasted < 0) throw new Error('Количество указано неверно');
+  const op = await getOne(d, 'operations', operationId);
+  if (!op || !op.items?.[index]) throw new Error('Позиция не найдена');
+  if (wasted > op.items[index].qty) throw new Error('Нельзя выбросить больше, чем куплено');
+  const items = op.items.map((/** @type {any} */ it, /** @type {number} */ i) => (i === index ? { ...it, wasted } : it));
+  await put(d, 'operations', { ...op, items, updatedAt: new Date().toISOString() });
 }

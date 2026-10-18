@@ -11,5 +11,6 @@ import './recurring.test.js';
 import './planning.test.js';
 import './items.test.js';
 import './import.test.js';
+import './products.test.js';
 
 run();

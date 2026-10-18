@@ -6,6 +6,7 @@ import { sumByCategory } from '../repo/operations.js';
 import { limitStatus, limitMessage } from '../limits.js';
 import { getWish, updateWish } from '../repo/wishes.js';
 import { itemsEditor } from './items-editor.js';
+import { ensureProducts } from '../repo/products.js';
 import { compressImage, savePhoto, getPhoto, deletePhoto } from '../photos.js';
 import { getPlanned, updatePlanned } from '../repo/planned.js';
 import { navigate } from '../router.js';
@@ -241,6 +242,11 @@ export async function renderOperationForm(root, params) {
   async function onSubmit(e) {
     e.preventDefault();
     const items = editor.read();
+    // Позиции без привязки к справочнику получают продукт (создаётся при необходимости).
+    if (items.some((it) => !it.productId && it.name.trim() && it.categoryId)) {
+      const map = await ensureProducts(items.filter((it) => !it.productId && it.name.trim() && it.categoryId).map((it) => ({ name: it.name, unit: it.unit, categoryId: it.categoryId })));
+      for (const it of items) if (!it.productId) it.productId = map.get(it.name.trim().replace(/\s+/g, ' ').toLowerCase())?.id ?? null;
+    }
     const amount = items.length ? editor.total() : parseAmount(amountInput.value);
     if (amount == null || amount <= 0) {
       toast(items.length ? 'Укажите суммы позиций' : 'Введите сумму, например 12,50', { error: true });

@@ -74,6 +74,8 @@ export async function renderReports(root) {
       body.append(table);
     }
 
+    body.append(el('div', { class: 'btn-row' }, el('a', { class: 'btn btn-secondary', href: '#/product-reports' }, 'Отчёт по продуктам'), el('a', { class: 'btn btn-secondary', href: '#/forecast' }, 'Прогноз закупок')));
+
     // 3. Динамика по месяцам
     body.append(el('h2', { class: 'section-title' }, `Динамика за ${DYNAMICS_MONTHS} месяцев`));
     const months = lastMonths(DYNAMICS_MONTHS, month);
