@@ -20,6 +20,8 @@ import { renderProducts } from './views/products.js';
 import { renderProduct } from './views/product.js';
 import { renderProductReports } from './views/product-reports.js';
 import { renderForecast } from './views/forecast.js';
+import { renderBackup } from './views/backup.js';
+import { renderSettings } from './views/settings.js';
 import { generateDue } from './repo/recurring.js';
 import { todayISO } from './repo/operations.js';
 import { toast } from './ui.js';
@@ -43,6 +45,8 @@ register('/products', { title: 'Продукты', back: '/more', tab: '/more', 
 register('/products/:id', { title: 'Продукт', back: '/products', tab: '/more', render: renderProduct });
 register('/product-reports', { title: 'Отчёт по продуктам', back: '/reports', tab: '/reports', render: renderProductReports });
 register('/forecast', { title: 'Прогноз закупок', back: '/product-reports', tab: '/reports', render: renderForecast });
+register('/backup', { title: 'Резервная копия', back: '/more', tab: '/more', render: renderBackup });
+register('/settings', { title: 'Настройки', back: '/more', tab: '/more', render: renderSettings });
 register('/wishes/new', { title: 'Новая запись', back: '/wishes', tab: '/more', render: renderWishForm });
 register('/wishes/:id', { title: 'Желаемая покупка', back: '/wishes', tab: '/more', render: renderWishForm });
 register('/reports', { title: 'Отчёты', render: renderReports });

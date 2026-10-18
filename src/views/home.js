@@ -8,6 +8,7 @@ import { suggestRate } from '../repo/rates.js';
 import { toEurCents } from '../money.js';
 import { upcomingRow } from './calendar.js';
 import { quickEntry } from './quick-entry.js';
+import { backupReminder, DEFAULT_REMINDER_DAYS } from '../backup-reminder.js';
 
 const INSTALLED_AT = 'installedAt';
 
@@ -20,6 +21,24 @@ export async function renderHome(root) {
   if (!installedAt) {
     installedAt = new Date().toISOString();
     await setSetting(INSTALLED_AT, installedAt, db);
+  }
+
+  // Напоминание о резервной копии (п. 4.8 ТЗ)
+  const reminder = backupReminder({
+    enabled: (await getSetting('backupReminderEnabled', db)) ?? true,
+    days: Number((await getSetting('backupReminderDays', db)) ?? DEFAULT_REMINDER_DAYS),
+    lastBackupAt: (await getSetting('lastBackupAt', db)) ?? null,
+    installedAt,
+    now: new Date(),
+  });
+  if (reminder.show) {
+    root.append(
+      el('div', { class: 'banner banner-warn' },
+        el('strong', null, 'Резервная копия'),
+        el('div', { class: 'small' }, reminder.daysSince == null ? 'Копия данных ещё не делалась. Данные хранятся только на этом устройстве.' : `С последней копии прошло ${reminder.daysSince} дн.`),
+        el('a', { class: 'btn btn-small', style: 'margin-top:8px', href: '#/backup' }, 'Сделать копию сейчас'),
+      ),
+    );
   }
 
   // Баннер о платежах сегодня и завтра

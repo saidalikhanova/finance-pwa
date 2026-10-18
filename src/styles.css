@@ -335,3 +335,7 @@ select.input-sm { flex: 0 0 64px; }
 .quick-form .input { flex: 1; }
 .quick-form[hidden] { display: none; }
 .toast { white-space: pre-line; }
+
+/* Этап 9 */
+.banner-warn { background: var(--warn); color: #1a1d21; }
+.banner-warn .btn { background: #1a1d21; color: #fff; display: inline-flex; text-decoration: none; }

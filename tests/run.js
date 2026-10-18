@@ -12,5 +12,6 @@ import './planning.test.js';
 import './items.test.js';
 import './import.test.js';
 import './products.test.js';
+import './backup.test.js';
 
 run();
