@@ -43,7 +43,7 @@ export async function renderOperationForm(root, params) {
     : plannedPay
       ? { type: plannedPay.type, amount: plannedPay.amount, currency: plannedPay.currency, categoryId: plannedPay.categoryId, comment: plannedPay.name, date: plannedPay.date }
       : isNew && (params.amount || params.category || params.date)
-        ? { type: 'expense', amount: Number(params.amount) || null, currency: 'EUR', categoryId: params.category ?? null, comment: '', date: params.date ?? null }
+        ? { type: 'expense', amount: Number(params.amount) || null, currency: params.currency === 'KZT' ? 'KZT' : 'EUR', categoryId: params.category ?? null, comment: '', date: params.date ?? null }
         : null;
 
   const form = el('form', { class: 'form', novalidate: true, onsubmit: onSubmit });

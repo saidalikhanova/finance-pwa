@@ -381,3 +381,12 @@ select.input-sm { flex: 0 0 64px; }
 .donut-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
 .donut-row .muted { flex: none; }
 .donut-legend { grid-template-columns: 1fr; }
+
+/* Выбор валюты на быстрых экранах */
+.quick-currency-row { display: flex; justify-content: center; margin: 0 0 6px; }
+.quick-currency-row .segmented { width: 140px; }
+.quick-form { flex-direction: column; align-items: stretch; }
+.quick-form-row { display: flex; gap: 8px; }
+.quick-form-row .input { flex: 1; min-width: 0; }
+.segmented-compact { flex: none; width: 96px; }
+.segmented-compact button { min-width: 0; min-height: 44px; }

@@ -5,6 +5,8 @@ import { listCategories } from '../repo/categories.js';
 import { createOperation, sumByCategory, todayISO } from '../repo/operations.js';
 import { getBudgetLine } from '../repo/budgets.js';
 import { limitStatus, limitMessage } from '../limits.js';
+import { saveRate } from '../repo/rates.js';
+import { currencyControls } from './currency-input.js';
 
 /**
  * Быстрый экран добавления расхода (по кнопке «+»): сумма крупно, категории с иконками,
@@ -29,10 +31,18 @@ export async function renderQuickAdd(root) {
     chips.append(chip);
   }
 
+  const money = currencyControls({ date: () => dateInput.value || todayISO(), amountInput: /** @type {HTMLInputElement} */ (amountInput) });
+  const currencySign = el('span', { class: 'quick-currency' }, '€');
+  money.toggle.addEventListener('click', () => (currencySign.textContent = money.currency === 'KZT' ? '₸' : '€'));
+  dateInput.addEventListener('change', () => money.refreshSuggestion());
+
   const form = el(
     'form',
     { class: 'form quick-add', novalidate: true, onsubmit: save },
-    el('div', { class: 'quick-amount-wrap' }, amountInput, el('span', { class: 'quick-currency' }, '€')),
+    el('div', { class: 'quick-amount-wrap' }, amountInput, currencySign),
+    el('div', { class: 'quick-currency-row' }, money.toggle),
+    money.preview,
+    money.rateField,
     hint,
     chips,
     el('div', { class: 'field', style: 'margin-top:12px' }, el('span', { class: 'field-label' }, 'Дата'), dateInput),
@@ -48,6 +58,7 @@ export async function renderQuickAdd(root) {
     const q = new URLSearchParams();
     const amount = parseAmount(amountInput.value);
     if (amount != null) q.set('amount', String(amount));
+    q.set('currency', money.currency);
     if (selected) q.set('category', selected.id);
     if (dateInput.value) q.set('date', dateInput.value);
     navigate(`/operations/new?${q}`);
@@ -67,7 +78,13 @@ export async function renderQuickAdd(root) {
       return;
     }
     const date = dateInput.value || todayISO();
-    await createOperation({ type: 'expense', amount, currency: 'EUR', date, categoryId: selected.id, comment: '' });
+    const rate = money.rate();
+    if (money.currency === 'KZT' && !rate) {
+      toast('Укажите курс тенге к евро', { error: true });
+      return;
+    }
+    await createOperation({ type: 'expense', amount, currency: money.currency, date, categoryId: selected.id, comment: '', rate, rateSource: rate ? 'manual' : null });
+    if (rate) await saveRate(date, rate);
     const month = date.slice(0, 7);
     const line = await getBudgetLine(month, selected.id);
     if (line?.limit != null) {
