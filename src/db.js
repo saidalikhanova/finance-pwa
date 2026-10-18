@@ -52,6 +52,25 @@ export const MIGRATIONS = [
       budgets.createIndex('month', 'month');
     },
   },
+  {
+    version: 5,
+    upgrade(db) {
+      // Повторяющиеся платежи (расписания).
+      const recurring = db.createObjectStore('recurring', { keyPath: 'id' });
+      recurring.createIndex('status', 'status');
+
+      // Разовые запланированные платежи.
+      const planned = db.createObjectStore('planned', { keyPath: 'id' });
+      planned.createIndex('date', 'date');
+
+      // Список желаемых покупок.
+      const wishes = db.createObjectStore('wishes', { keyPath: 'id' });
+      wishes.createIndex('status', 'status');
+
+      // Фотографии (сжатые изображения, Blob) — для желаемых покупок и чеков.
+      db.createObjectStore('photos', { keyPath: 'id' });
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

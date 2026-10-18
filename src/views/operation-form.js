@@ -4,6 +4,8 @@ import { suggestRate, saveRate } from '../repo/rates.js';
 import { getBudgetLine } from '../repo/budgets.js';
 import { sumByCategory } from '../repo/operations.js';
 import { limitStatus, limitMessage } from '../limits.js';
+import { getWish, updateWish } from '../repo/wishes.js';
+import { getPlanned, updatePlanned } from '../repo/planned.js';
 import { navigate } from '../router.js';
 import {
   createOperation,
@@ -30,10 +32,24 @@ export async function renderOperationForm(root, params) {
 
   const allCategories = await listCategories({ includeArchived: true });
 
+  // Предзаполнение из списка желаемых покупок («Куплено») или разового платежа («Оплачено»).
+  const wish = isNew && params.wish ? await getWish(params.wish) : null;
+  const plannedPay = isNew && params.planned ? await getPlanned(params.planned) : null;
+  const preset = wish
+    ? { type: 'expense', amount: wish.price, currency: wish.currency, categoryId: wish.categoryId, comment: wish.name, date: null }
+    : plannedPay
+      ? { type: plannedPay.type, amount: plannedPay.amount, currency: plannedPay.currency, categoryId: plannedPay.categoryId, comment: plannedPay.name, date: plannedPay.date }
+      : null;
+
   const form = el('form', { class: 'form', novalidate: true, onsubmit: onSubmit });
+  const hint = wish
+    ? el('p', { class: 'muted small' }, `Покупка из списка желаний: «${wish.name}». Проверьте сумму и сохраните.`)
+    : plannedPay
+      ? el('p', { class: 'muted small' }, `Запланированный платёж «${plannedPay.name}». Проверьте сумму и дату.`)
+      : null;
 
   // Тип
-  const typeInput = el('input', { type: 'hidden', name: 'type', value: existing?.type ?? 'expense' });
+  const typeInput = el('input', { type: 'hidden', name: 'type', value: existing?.type ?? preset?.type ?? 'expense' });
   const typeToggle = segmented(
     [
       ['expense', 'Расход'],
@@ -53,10 +69,10 @@ export async function renderOperationForm(root, params) {
     inputmode: 'decimal',
     autocomplete: 'off',
     placeholder: '0,00',
-    value: existing ? amountToInput(existing.amount) : '',
+    value: existing ? amountToInput(existing.amount) : preset?.amount ? amountToInput(preset.amount) : '',
     required: true,
   });
-  const currencyInput = el('input', { type: 'hidden', name: 'currency', value: existing?.currency ?? 'EUR' });
+  const currencyInput = el('input', { type: 'hidden', name: 'currency', value: existing?.currency ?? preset?.currency ?? 'EUR' });
   const currencyToggle = segmented(
     [
       ['EUR', '€'],
@@ -74,7 +90,7 @@ export async function renderOperationForm(root, params) {
     class: 'input',
     type: 'date',
     name: 'date',
-    value: existing?.date ?? todayISO(),
+    value: existing?.date ?? preset?.date ?? todayISO(),
     required: true,
     onchange: () => suggestRateForDate(),
   });
@@ -127,7 +143,7 @@ export async function renderOperationForm(root, params) {
   const categorySelect = el('select', { class: 'select', name: 'categoryId', required: true });
   function fillCategories() {
     const kind = typeInput.value;
-    const current = existing?.categoryId;
+    const current = existing?.categoryId ?? preset?.categoryId;
     categorySelect.innerHTML = '';
     categorySelect.append(el('option', { value: '', disabled: true, selected: true }, 'Выберите категорию'));
     for (const c of allCategories) {
@@ -140,7 +156,7 @@ export async function renderOperationForm(root, params) {
   fillCategories();
 
   // Комментарий
-  const commentInput = el('input', { class: 'input', name: 'comment', value: existing?.comment ?? '', placeholder: 'Необязательно', maxlength: 200 });
+  const commentInput = el('input', { class: 'input', name: 'comment', value: existing?.comment ?? preset?.comment ?? '', placeholder: 'Необязательно', maxlength: 200 });
 
   form.replaceChildren(
     field('Тип', typeToggle),
@@ -152,6 +168,7 @@ export async function renderOperationForm(root, params) {
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, isNew ? 'Сохранить' : 'Сохранить изменения')),
     ...(existing ? [el('button', { class: 'btn btn-danger', type: 'button', onclick: onDelete }, 'Удалить операцию')] : []),
   );
+  if (hint) form.prepend(hint);
   root.append(form);
   if (isNew) amountInput.focus();
 
@@ -193,7 +210,9 @@ export async function renderOperationForm(root, params) {
       if (existing) {
         await updateOperation(existing.id, data);
       } else {
-        await createOperation(data);
+        const op = await createOperation(data);
+        if (wish) await updateWish(wish.id, { status: 'bought', boughtAt: data.date, actualPrice: data.amount, operationId: op.id });
+        if (plannedPay) await updatePlanned(plannedPay.id, { done: true, operationId: op.id });
       }
       let message = existing ? 'Изменения сохранены' : 'Операция сохранена';
       if (rate) {

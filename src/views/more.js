@@ -6,9 +6,17 @@ export function renderMore(root) {
     el(
       'div',
       { class: 'card list-card' },
-      el('a', { class: 'menu-row', href: '#/categories' }, 'Категории', el('span', { class: 'muted' }, '›')),
-      el('a', { class: 'menu-row', href: '#/rates' }, 'Курсы тенге к евро', el('span', { class: 'muted' }, '›')),
+      menu('#/payments', 'Платежи'),
+      menu('#/calendar', 'Календарь платежей'),
+      menu('#/wishes', 'Желаемые покупки'),
+      menu('#/categories', 'Категории'),
+      menu('#/rates', 'Курсы тенге к евро'),
     ),
     el('p', { class: 'muted small' }, 'Резервная копия и настройки появятся на этапе 9.'),
   );
+}
+
+/** @param {string} href @param {string} text */
+function menu(href, text) {
+  return el('a', { class: 'menu-row', href }, text, el('span', { class: 'muted' }, '›'));
 }

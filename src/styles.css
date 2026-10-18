@@ -284,3 +284,33 @@ details summary { padding: 10px 0; cursor: pointer; }
 .table td:first-child, .table th:first-child { padding-left: 0; }
 .table tr:last-child td { border-bottom: 0; }
 .table .num { text-align: right; white-space: nowrap; }
+
+/* Этап 6: платежи, календарь, желаемые покупки */
+.btn-row { display: flex; gap: 8px; margin: 4px 0 12px; }
+.btn-row .btn { flex: 1; text-decoration: none; }
+.btn-secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--border); }
+.banner {
+  display: block; padding: 12px 16px; margin-bottom: 12px;
+  background: var(--accent); color: var(--accent-text);
+  border-radius: var(--radius); text-decoration: none;
+}
+.pay-card { padding: 12px 16px; }
+.pay-card .row-top { color: inherit; text-decoration: none; }
+.row-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.row-actions .link-btn { padding: 6px 8px 6px 0; font-size: 14px; text-decoration: none; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-head { text-align: center; font-size: 12px; color: var(--text-muted); padding: 4px 0; }
+.cal-day {
+  position: relative; aspect-ratio: 1; border: 0; border-radius: 8px;
+  background: transparent; color: var(--text); font: inherit; font-size: 15px; cursor: pointer;
+}
+.cal-today { font-weight: 700; color: var(--accent); }
+.cal-selected { background: var(--accent); color: var(--accent-text); }
+.cal-dot { position: absolute; left: 50%; bottom: 4px; width: 5px; height: 5px; margin-left: -2px; border-radius: 50%; background: var(--warn); }
+.cal-selected .cal-dot { background: var(--accent-text); }
+.thumb { width: 48px; height: 48px; flex: none; border-radius: 8px; background: var(--border); overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wish-row { justify-content: flex-start; }
+.wish-row .row-amount { margin-left: auto; }
+.photo-preview img { max-width: 100%; max-height: 240px; border-radius: var(--radius); display: block; margin-bottom: 8px; }
+.cat-row input[type=checkbox] { width: 20px; height: 20px; }

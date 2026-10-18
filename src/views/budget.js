@@ -4,6 +4,9 @@ import { listCategories } from '../repo/categories.js';
 import { getBudget, listBudgetMonths, copyBudget } from '../repo/budgets.js';
 import { sumByCategory, todayISO } from '../repo/operations.js';
 import { limitStatus, pluralDays } from '../limits.js';
+import { listWishes, planWishes } from '../repo/wishes.js';
+import { suggestRate } from '../repo/rates.js';
+import { toEurCents } from '../money.js';
 
 // Месяц сохраняется между переходами, чтобы после правки строки
 // вернуться к тому же месяцу.
@@ -117,6 +120,53 @@ export async function renderBudget(root) {
           ),
         ),
       );
+    }
+
+    // Желаемые покупки рядом с бюджетом (п. 4.14 ТЗ)
+    const wishes = (await listWishes()).filter((w) => w.status === 'want');
+    const plannedWishes = (await listWishes()).filter((w) => w.status === 'planned' && w.plannedMonth === month);
+    if (wishes.length || plannedWishes.length) {
+      body.append(el('h2', { class: 'section-title' }, 'Желаемые покупки'));
+      const card = el('div', { class: 'card list-card' });
+      const rate = (await suggestRate(today))?.rate ?? null;
+      const priceEur = (/** @type {import('../repo/wishes.js').Wish} */ w) => (w.price == null ? null : toEurCents(w.price, w.currency, rate));
+      /** @type {HTMLInputElement[]} */
+      const boxes = [];
+      for (const w of wishes) {
+        const eur = priceEur(w);
+        const box = /** @type {HTMLInputElement} */ (el('input', { type: 'checkbox', value: w.id, disabled: eur == null }));
+        boxes.push(box);
+        card.append(
+          el(
+            'label',
+            { class: 'cat-row' },
+            box,
+            el('span', { class: 'cat-name' }, w.name, el('span', { class: 'muted small' }, ` · ${categories.find((c) => c.id === w.categoryId)?.name ?? ''}`)),
+            el('span', { class: 'small' }, eur == null ? 'без цены' : formatMoney(eur, 'EUR')),
+          ),
+        );
+      }
+      if (wishes.length) {
+        card.append(
+          el('div', { class: 'add-row' }, el('button', {
+            class: 'btn btn-small',
+            onclick: async () => {
+              const ids = boxes.filter((b) => b.checked).map((b) => b.value);
+              if (!ids.length) {
+                toast('Отметьте записи', { error: true });
+                return;
+              }
+              const r = await planWishes(ids, month, priceEur);
+              toast(`В план месяца добавлено: ${r.moved}`);
+              refresh();
+            },
+          }, `В план ${formatMonth(month)}`)),
+        );
+      }
+      for (const w of plannedWishes) {
+        card.append(el('div', { class: 'cat-row muted small' }, el('span', { class: 'cat-name' }, `${w.name} — в плане месяца`), el('a', { class: 'link-btn', href: `#/wishes/${w.id}` }, '›')));
+      }
+      body.append(card);
     }
 
     /** @param {string} from */

@@ -23,8 +23,14 @@ export function register(path, route) {
 }
 
 export function currentPath() {
-  const hash = location.hash.replace(/^#/, '');
+  const hash = location.hash.replace(/^#/, '').split('?')[0];
   return hash || '/';
+}
+
+/** Параметры после «?» в хэше: #/operations/new?wish=abc → { wish: 'abc' }. */
+export function currentQuery() {
+  const q = location.hash.split('?')[1] ?? '';
+  return Object.fromEntries(new URLSearchParams(q));
 }
 
 /** @param {string} path */
@@ -61,7 +67,8 @@ export async function renderCurrent(root, titleEl, backEl) {
   const path = currentPath();
   const found = match(path) ?? match('/');
   if (!found) return;
-  const { route, params } = found;
+  const { route } = found;
+  const params = { ...currentQuery(), ...found.params };
 
   titleEl.textContent = route.title;
   document.title = route.title === 'Главная' ? 'Финансы' : `${route.title} — Финансы`;

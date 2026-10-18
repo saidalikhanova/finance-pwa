@@ -7,5 +7,7 @@ import './rates.test.js';
 import './limits.test.js';
 import './budgets.test.js';
 import './reports.test.js';
+import './recurring.test.js';
+import './planning.test.js';
 
 run();
