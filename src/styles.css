@@ -341,3 +341,11 @@ select.input-sm { flex: 0 0 64px; }
 .quick-form .input { flex: 1; }
 .quick-form[hidden] { display: none; }
 .row-budget .row-main > div:first-child { white-space: normal; }
+
+/* Иконки категорий */
+.icon { stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.avatar .icon { stroke-width: 2; }
+.avatar-sm { width: 26px; height: 26px; font-size: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding-left: 7px; }
+.chip .avatar-sm { width: 24px; height: 24px; }
+.chip.active .avatar { background: rgba(255, 255, 255, 0.25) !important; }

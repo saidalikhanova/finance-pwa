@@ -1,5 +1,7 @@
 // Небольшие помощники для построения интерфейса.
 
+import { iconFor, iconSvg } from './icons.js';
+
 /**
  * Создаёт элемент: el('button', { class: 'btn', onclick: fn }, 'Текст', child...)
  * @param {string} tag
@@ -34,14 +36,16 @@ export function categoryColor(name) {
 }
 
 /**
- * Кружок с первой буквой категории.
+ * Кружок категории: иконка по названию, иначе первая буква.
  * @param {string} name
- * @param {{ income?: boolean }} [opts]
+ * @param {{ income?: boolean, small?: boolean }} [opts]
  */
 export function avatar(name, opts = {}) {
-  const letter = (name.trim()[0] ?? '·').toUpperCase();
-  if (opts.income) return el('div', { class: 'avatar avatar-income', 'aria-hidden': 'true' }, letter);
-  return el('div', { class: 'avatar', style: `background:${categoryColor(name)}`, 'aria-hidden': 'true' }, letter);
+  const icon = iconFor(name) ?? (opts.income ? 'coins' : null);
+  const content = icon ? iconSvg(icon, opts.small ? 16 : 20) : (name.trim()[0] ?? '·').toUpperCase();
+  const cls = `avatar${opts.small ? ' avatar-sm' : ''}${opts.income ? ' avatar-income' : ''}`;
+  const style = opts.income ? '' : `background:${categoryColor(name)}`;
+  return el('div', { class: cls, style, 'aria-hidden': 'true' }, content);
 }
 
 /**

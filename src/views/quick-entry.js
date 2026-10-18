@@ -1,4 +1,4 @@
-import { el, toast } from '../ui.js';
+import { el, avatar, toast } from '../ui.js';
 import { parseAmount } from '../money.js';
 import { listCategories } from '../repo/categories.js';
 import { createOperation, sumByCategory, todayISO } from '../repo/operations.js';
@@ -28,7 +28,7 @@ export async function quickEntry(onSaved) {
       form.hidden = false;
       amountInput.focus();
       hint.textContent = `${c.name}: сумма в евро, дата — сегодня.`;
-    } }, c.name);
+    } }, avatar(c.name, { small: true }), c.name);
     chips.append(chip);
   }
 

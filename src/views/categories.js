@@ -1,4 +1,4 @@
-import { el, toast } from '../ui.js';
+import { el, avatar, toast } from '../ui.js';
 import {
   listCategories,
   createCategory,
@@ -88,7 +88,7 @@ export async function renderCategories(root) {
       },
     }, c.archived ? 'Вернуть' : 'В архив');
 
-    return el('div', { class: 'cat-row' }, name, info, rename, archive);
+    return el('div', { class: 'cat-row' }, avatar(c.name, { income: c.kind === 'income', small: true }), name, info, rename, archive);
   }
 
   await refresh();

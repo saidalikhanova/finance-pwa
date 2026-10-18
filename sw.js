@@ -4,7 +4,7 @@
 // При каждом изменении файлов приложения нужно увеличить CACHE_VERSION —
 // тогда старый кэш будет удалён и файлы загрузятся заново.
 
-const CACHE_VERSION = 'v10';
+const CACHE_VERSION = 'v11';
 const CACHE_NAME = `finance-${CACHE_VERSION}`;
 
 const APP_FILES = [
@@ -17,6 +17,7 @@ const APP_FILES = [
   './src/db.js',
   './src/money.js',
   './src/ui.js',
+  './src/icons.js',
   './src/repo/categories.js',
   './src/repo/operations.js',
   './src/repo/rates.js',
