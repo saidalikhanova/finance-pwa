@@ -30,8 +30,19 @@ export async function renderBudgetLine(root, params) {
   /** @type {'EUR' | 'KZT'} */
   let currency = 'EUR';
   const known = (await suggestRate(today))?.rate ?? null;
+  let editingRate = !known;
   const rateInput = el('input', { class: 'input', inputmode: 'decimal', autocomplete: 'off', placeholder: 'например 508,95', value: known ? formatRate(known) : '', oninput: updatePreview });
-  const rateField = el('label', { class: 'field', hidden: true }, el('span', { class: 'field-label' }, 'Курс, ₸ за 1 €'), rateInput, el('p', { class: 'muted small' }, 'Суммы будут сохранены в евро по этому курсу.'));
+  const rateEdit = el('label', { class: 'field', hidden: true }, el('span', { class: 'field-label' }, 'Курс, ₸ за 1 €'), rateInput, el('p', { class: 'muted small' }, 'Суммы будут сохранены в евро по этому курсу; курс запомнится на сегодня.'));
+  const rateText = el('span');
+  const rateLine = el('p', { class: 'muted small rate-line', hidden: true }, rateText, ' · ', el('button', { type: 'button', class: 'link-btn', onclick: () => { editingRate = true; renderRate(); rateInput.focus(); } }, 'изменить'));
+  const rateField = el('div', null, rateLine, rateEdit);
+  function renderRate() {
+    const isKzt = currency === 'KZT';
+    const r = parseRateSafe();
+    rateLine.hidden = !isKzt || editingRate || !r;
+    rateEdit.hidden = !isKzt || (!editingRate && Boolean(r));
+    if (r) rateText.textContent = `по курсу ${formatRate(r)} ₸ за 1 €`;
+  }
 
   const plannedInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,00', value: line?.planned != null ? amountToInput(line.planned) : '', oninput: updatePreview });
   const limitInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,00', value: line?.limit != null ? amountToInput(line.limit) : '', oninput: updatePreview });
@@ -43,7 +54,7 @@ export async function renderBudgetLine(root, params) {
   const toggle = segmented([['EUR', '€'], ['KZT', '₸']], currency, (v) => {
     const prev = currency;
     currency = /** @type {'EUR' | 'KZT'} */ (v);
-    rateField.hidden = currency !== 'KZT';
+    renderRate();
     // Переводим уже введённые значения в выбранную валюту, чтобы цифры не «прыгали»
     const rate = parseRateSafe();
     for (const input of [plannedInput, limitInput]) {

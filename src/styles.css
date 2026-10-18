@@ -390,3 +390,5 @@ select.input-sm { flex: 0 0 64px; }
 .quick-form-row .input { flex: 1; min-width: 0; }
 .segmented-compact { flex: none; width: 96px; }
 .segmented-compact button { min-width: 0; min-height: 44px; }
+.rate-line { margin: 0 0 12px; }
+.rate-line .link-btn { padding: 0; }
