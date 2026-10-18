@@ -24,6 +24,27 @@ export function el(tag, attrs = {}, ...children) {
 }
 
 /**
+ * Устойчивый цвет категории по названию (оттенок HSL из хэша строки).
+ * @param {string} name
+ */
+export function categoryColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 42% 46%)`;
+}
+
+/**
+ * Кружок с первой буквой категории.
+ * @param {string} name
+ * @param {{ income?: boolean }} [opts]
+ */
+export function avatar(name, opts = {}) {
+  const letter = (name.trim()[0] ?? '·').toUpperCase();
+  if (opts.income) return el('div', { class: 'avatar avatar-income', 'aria-hidden': 'true' }, letter);
+  return el('div', { class: 'avatar', style: `background:${categoryColor(name)}`, 'aria-hidden': 'true' }, letter);
+}
+
+/**
  * Короткое сообщение внизу экрана.
  * @param {string} text
  * @param {{ error?: boolean, ms?: number }} [opts]

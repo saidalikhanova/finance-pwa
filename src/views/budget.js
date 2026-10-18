@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, formatMonth, shiftMonth, currentMonth } from '../ui.js';
+import { el, avatar, toast, confirmDialog, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney } from '../money.js';
 import { listCategories } from '../repo/categories.js';
 import { getBudget, listBudgetMonths, copyBudget } from '../repo/budgets.js';
@@ -94,23 +94,28 @@ export async function renderBudget(root) {
 
     // Расходы
     body.append(el('h2', { class: 'section-title' }, 'Расходы'));
+    const expenseList = el('div', { class: 'list' });
     for (const c of categories.filter((c) => c.kind === 'expense')) {
       const line = byCat.get(c.id);
       const f = fact.get(c.id) ?? 0;
       if (c.archived && !line && !f) continue;
-      body.append(expenseRow(c, line, f, month, today));
+      expenseList.append(expenseRow(c, line, f, month, today));
     }
+    body.append(expenseList);
 
     // Доходы
     body.append(el('h2', { class: 'section-title' }, 'Доходы'));
+    const incomeList = el('div', { class: 'list' });
+    body.append(incomeList);
     for (const c of categories.filter((c) => c.kind === 'income')) {
       const line = byCat.get(c.id);
       const f = fact.get(c.id) ?? 0;
       if (c.archived && !line && !f) continue;
-      body.append(
+      incomeList.append(
         el(
           'a',
           { class: 'row', href: `#/budget/${month}/${c.id}` },
+          avatar(c.name, { income: true }),
           el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name)),
           el(
             'div',
@@ -216,7 +221,7 @@ function expenseRow(c, line, fact, month, today) {
 
   const main = el('div', { class: 'row-main' }, el('div', null, name));
   const amount = el('div', { class: 'row-amount' }, el('div', null, formatMoney(fact, 'EUR')));
-  const row = el('a', { class: 'row row-budget', href: `#/budget/${month}/${c.id}` }, el('div', { class: 'row-top' }, main, amount));
+  const row = el('a', { class: 'row row-budget', href: `#/budget/${month}/${c.id}` }, el('div', { class: 'row-top' }, el('div', { style: 'display:flex;gap:12px;align-items:center;min-width:0' }, avatar(c.name), main), amount));
 
   const notes = [];
   if (planned != null) notes.push(`план ${formatMoney(planned, 'EUR')}`);

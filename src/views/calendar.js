@@ -1,4 +1,4 @@
-import { el, formatMonth, shiftMonth, currentMonth, formatDate } from '../ui.js';
+import { el, avatar, formatMonth, shiftMonth, currentMonth, formatDate } from '../ui.js';
 import { formatMoney } from '../money.js';
 import { listUpcoming } from '../repo/upcoming.js';
 import { monthRange, todayISO } from '../repo/operations.js';
@@ -81,7 +81,9 @@ export async function renderCalendar(root) {
         list.append(el('p', { class: 'muted' }, 'Платежей нет.'));
         return;
       }
-      for (const it of dayItems) list.append(upcomingRow(it));
+      const group = el('div', { class: 'list' });
+      for (const it of dayItems) group.append(upcomingRow(it));
+      list.append(group);
     }
     showDay();
   }
@@ -95,6 +97,7 @@ export function upcomingRow(it) {
   return el(
     'a',
     { class: 'row', href },
+    avatar(it.name, { income: it.type === 'income' }),
     el('div', { class: 'row-main' }, el('div', null, it.name), el('div', { class: 'muted small' }, it.source === 'recurring' ? 'повторяющийся' : 'разовый')),
     el('div', { class: `row-amount ${it.type}` }, formatMoney(it.type === 'expense' ? -it.amount : it.amount, it.currency, { sign: true })),
   );

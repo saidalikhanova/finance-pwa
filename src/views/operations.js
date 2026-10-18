@@ -1,4 +1,4 @@
-import { el, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
+import { el, avatar, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney, formatRate } from '../money.js';
 import { listOperations, monthRange } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
@@ -102,14 +102,18 @@ export async function renderOperations(root) {
     );
 
     let lastDate = '';
+    let group = el('div', { class: 'list' });
     for (const o of ops) {
       if (o.date !== lastDate) {
         lastDate = o.date;
         list.append(el('h3', { class: 'date-head' }, formatDate(o.date)));
+        group = el('div', { class: 'list' });
+        list.append(group);
       }
       const cat = byId.get(o.categoryId);
       const n = o.items?.length ?? 0;
-      const title = n ? `${o.store || cat?.name || 'Покупка'} · ${n} поз.` : cat?.name ?? 'Без категории';
+      const catName = cat?.name ?? 'Без категории';
+      const title = n ? `${o.store || catName} · ${n} поз.` : o.store ? `${catName} · ${o.store}` : catName;
       const subParts = [n ? [...new Set(o.items.map((it) => byId.get(it.categoryId)?.name))].filter(Boolean).join(', ') : '', o.comment !== o.store ? o.comment : '', o.photoId ? '📷' : ''].filter(Boolean);
       const amount = formatMoney(o.type === 'expense' ? -o.amount : o.amount, o.currency, { sign: true });
       const eur =
@@ -118,11 +122,12 @@ export async function renderOperations(root) {
             ? 'курс не определён'
             : `≈ ${formatMoney(o.amountEur, 'EUR')} · курс ${formatRate(o.rate ?? 0)}`
           : '';
-      list.append(
+      group.append(
         el(
           'a',
           { class: 'row', href: `#/operations/${o.id}` },
-          el('div', { class: 'row-main' }, el('div', null, title), el('div', { class: 'muted small' }, subParts.join(' · '))),
+          avatar(catName, { income: o.type === 'income' }),
+          el('div', { class: 'row-main' }, el('div', null, title), subParts.length ? el('div', { class: 'muted small' }, subParts.join(' · ')) : null),
           el(
             'div',
             { class: 'row-amount' },

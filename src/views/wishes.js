@@ -89,6 +89,8 @@ export async function renderWishes(root) {
       list.append(el('p', { class: 'muted empty' }, 'Записей нет.'));
       return;
     }
+    const group = el('div', { class: 'list' });
+    list.append(group);
     for (const w of rows) {
       const thumb = el('div', { class: 'thumb' });
       if (w.photoId) {
@@ -102,7 +104,7 @@ export async function renderWishes(root) {
       const sub = [PRIORITY_LABEL[w.priority], catName(w.categoryId)];
       if (w.status === 'bought' && w.boughtAt) sub.push(`куплено ${formatDate(w.boughtAt)}`);
       const price = w.status === 'bought' && w.actualPrice != null ? w.actualPrice : w.price;
-      list.append(
+      group.append(
         el(
           'a',
           { class: 'row wish-row', href: `#/wishes/${w.id}` },
