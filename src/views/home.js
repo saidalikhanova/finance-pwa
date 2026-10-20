@@ -1,9 +1,11 @@
 import { el, formatDate, formatMonth, currentMonth, shiftMonth } from '../ui.js';
 import { listPlanned } from '../repo/planned.js';
+import { listAllLines } from '../repo/budgets.js';
+import { incomeDebt } from '../income.js';
 import { expectedStatus, incomeExpectations } from '../expected.js';
 import { expectedRow } from './budget.js';
 import { getDb, getSetting, setSetting } from '../db.js';
-import { formatMoney, toEurCents } from '../money.js';
+import { formatMoney, formatWhole, toEurCents } from '../money.js';
 import { listUpcoming } from '../repo/upcoming.js';
 import { listOperations, monthRange, sumByCategory, todayISO } from '../repo/operations.js';
 import { getBudget } from '../repo/budgets.js';
@@ -70,6 +72,29 @@ export async function renderHome(root) {
     );
   }
   root.append(hero);
+
+  // Долги по источникам дохода: план минус получено на сегодня
+  {
+    const rateNow = (await suggestRate(today, db))?.rate ?? null;
+    const allLines = await listAllLines(db);
+    const incomeOps = await listOperations({ type: 'income' }, db);
+    const owed = [];
+    for (const c of categories.filter((c) => c.kind === 'income')) {
+      const d = incomeDebt({ lines: allLines.filter((l) => l.categoryId === c.id), ops: incomeOps.filter((o) => o.categoryId === c.id), upTo: month, rateNow });
+      if (d && d.debt > 0) owed.push({ c, d });
+    }
+    if (owed.length) {
+      const card = el('div', { class: 'card list-card debt-owed' });
+      card.append(el('div', { class: 'hero-label', style: 'padding-top:12px' }, 'Вам должны'));
+      for (const { c, d } of owed) {
+        card.append(el('a', { class: 'menu-row', href: `#/budget/${month}/${c.id}` },
+          el('span', null, c.name, el('div', { class: 'muted small' }, `${d.months.filter((m) => m.received < m.plan).length} мес. с недоплатой`)),
+          el('strong', { class: 'warn' }, formatWhole(d.debt, d.currency)),
+        ));
+      }
+      root.append(card);
+    }
+  }
 
   // Ожидаемые поступления: этот и следующий месяц, задержанные — отдельно
   const nextMonth = shiftMonth(month, 1);

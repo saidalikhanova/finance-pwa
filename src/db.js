@@ -94,6 +94,20 @@ export const MIGRATIONS = [
       };
     },
   },
+  {
+    version: 8,
+    upgrade(_db, tx) {
+      // План в исходной валюте и «каждый месяц». Старые строки — план в евро, без повтора.
+      const req = tx.objectStore('budgets').openCursor();
+      req.onsuccess = () => {
+        const cur = req.result;
+        if (!cur) return;
+        const v = cur.value;
+        if (!v.plannedCurrency) cur.update({ ...v, plannedCurrency: 'EUR', plannedOriginal: v.planned ?? null, repeat: false });
+        cur.continue();
+      };
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

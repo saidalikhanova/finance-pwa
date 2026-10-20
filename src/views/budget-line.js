@@ -6,6 +6,7 @@ import { getBudgetLine, setBudgetLine } from '../repo/budgets.js';
 import { sumByCategory, todayISO } from '../repo/operations.js';
 import { suggestRate, saveRate } from '../repo/rates.js';
 import { budgetState } from './budget.js';
+import { renderIncomeLine } from './income-line.js';
 import { segmented } from './form-parts.js';
 
 /**
@@ -22,6 +23,8 @@ export async function renderBudgetLine(root, params) {
     return;
   }
   budgetState.month = month;
+  // Источник дохода: план, получено и долг — отдельный экран
+  if (category.kind === 'income') return renderIncomeLine(root, category, month);
   const line = await getBudgetLine(month, categoryId);
   const fact = (await sumByCategory(month)).get(categoryId) ?? 0;
   const isExpense = category.kind === 'expense';

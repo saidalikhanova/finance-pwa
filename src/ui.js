@@ -108,6 +108,16 @@ export function formatMonth(month) {
 }
 
 /**
+ * «2026-08» → «августа 2026» (родительный падеж: «с августа 2026»).
+ * @param {string} month
+ */
+export function formatMonthGen(month) {
+  const [y, m] = month.split('-').map(Number);
+  const s = new Date(y, m - 1, 1).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }).replace(/^\d+\s*/, '');
+  return `${s} ${y}`;
+}
+
+/**
  * Сдвиг месяца: shiftMonth('2026-01', -1) → '2025-12'.
  * @param {string} month
  * @param {number} delta

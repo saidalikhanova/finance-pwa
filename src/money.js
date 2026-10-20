@@ -105,3 +105,12 @@ export function toEurCents(minor, currency, rateScaled) {
 export function fromEurCents(eurCents, rateScaled) {
   return divRound(eurCents * rateScaled, RATE_SCALE);
 }
+
+/**
+ * Как formatMoney, но без «,00» у целых сумм: «600 000 ₸».
+ * @param {number} minor
+ * @param {Currency} currency
+ */
+export function formatWhole(minor, currency) {
+  return formatMoney(minor, currency).replace(/,00(?= )/, '');
+}

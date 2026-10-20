@@ -85,5 +85,7 @@ export function currencyControls(opts) {
     },
   };
   render();
+  // Тенге выбраны сразу — подставляем запомненный курс, поле курса не показываем
+  if (currency === 'KZT' && !rateTouched) suggest();
   return api;
 }

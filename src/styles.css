@@ -407,3 +407,10 @@ select.input-sm { flex: 0 0 64px; }
 .status-card.status-received { border-left-color: var(--ok); background: var(--ok-soft); }
 .status-card.status-expected { border-left-color: var(--accent); }
 details[hidden] { display: none; }
+
+/* Источник дохода: план, получено, долг */
+.card-title { font-weight: 600; margin-bottom: 6px; }
+.debt-owed { border-left: 4px solid var(--warn); }
+.debt-card.debt-owed { background: var(--warn-soft); }
+.debt-card.debt-owed .hero-value { color: var(--warn); }
+.debt-card.debt-ok { border-left: 4px solid var(--ok); }

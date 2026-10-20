@@ -1,8 +1,9 @@
 import { el, avatar, toast, confirmDialog, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
-import { formatMoney } from '../money.js';
+import { formatMoney, formatWhole } from '../money.js';
 import { listCategories } from '../repo/categories.js';
-import { getBudget, listBudgetMonths, copyBudget } from '../repo/budgets.js';
-import { sumByCategory, todayISO, monthRange } from '../repo/operations.js';
+import { getBudget, listBudgetMonths, copyBudget, listAllLines } from '../repo/budgets.js';
+import { sumByCategory, todayISO, monthRange, listOperations } from '../repo/operations.js';
+import { effectiveLine, lineOriginal, incomeDebt, effectivePlanEur, convert } from '../income.js';
 import { listPlanned } from '../repo/planned.js';
 import { incomeExpectations, expectedStatus, whenLabel } from '../expected.js';
 import { limitStatus, pluralDays } from '../limits.js';
@@ -54,6 +55,9 @@ export async function renderBudget(root) {
     const exp = incomeExpectations(monthIncome, month, (p) => toEurCents(p.amount, p.currency, rate));
     // В текущем месяце показываем и задержанные с прошлых месяцев
     const lateFromBefore = month === today.slice(0, 7) ? (await listPlanned({ to: `${month}-00`, type: 'income' })) : [];
+    const thisMonth = today.slice(0, 7);
+    const allLines = await listAllLines();
+    const incomeOps = await listOperations({ type: 'income' });
     body.innerHTML = '';
 
     // Копирование бюджета из другого месяца
@@ -83,7 +87,7 @@ export async function renderBudget(root) {
       const line = byCat.get(c.id);
       const f = fact.get(c.id) ?? 0;
       if (c.kind === 'income') {
-        planIncome += (line?.planned ?? 0) + (exp.byCategory.get(c.id)?.planned ?? 0);
+        planIncome += (effectivePlanEur(allLines.filter((l) => l.categoryId === c.id), month, rate) ?? 0) + (exp.byCategory.get(c.id)?.planned ?? 0);
         factIncome += f;
       } else {
         planExpense += line?.planned ?? 0;
@@ -99,7 +103,7 @@ export async function renderBudget(root) {
         totalRow('Расходы', planExpense, factExpense),
         totalRow('Баланс', planIncome - planExpense, factIncome - factExpense, '', true),
         exp.pending ? el('p', { class: 'small', style: 'margin:8px 0 0' }, `Ещё ожидается поступлений: ${formatMoney(exp.pending, 'EUR')}`) : null,
-        el('p', { class: 'muted small', style: 'margin:8px 0 0' }, 'План вы задаёте сами, нажав на категорию; ожидаемые доходы добавляются к плану. Факт считается из записанных операций.'),
+        el('p', { class: 'muted small', style: 'margin:8px 0 0' }, 'План вы задаёте сами, нажав на категорию. Факт — из записанных операций и отмеченных поступлений.'),
       ),
     );
 
@@ -114,33 +118,38 @@ export async function renderBudget(root) {
     }
     body.append(expenseList);
 
-    // Доходы
+    // Доходы: у каждого источника — план месяца, получено и долг на сегодня
     body.append(
       el('h2', { class: 'section-title' }, 'Доходы'),
-      el('div', { class: 'btn-row' },
-        el('a', { class: 'btn btn-secondary btn-small', href: `#/planned/new?type=income&month=${month}&from=budget` }, '+ Ожидаемый'),
-        el('a', { class: 'btn btn-secondary btn-small', href: `#/add?type=income&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, '+ Уже получен'),
-      ),
+      el('p', { class: 'muted small', style: 'margin:-4px 4px 8px' }, 'Нажмите на источник, чтобы задать план и отметить, когда и сколько получено.'),
     );
     const incomeList = el('div', { class: 'list' });
     body.append(incomeList);
     for (const c of categories.filter((c) => c.kind === 'income')) {
-      const line = byCat.get(c.id);
+      const catLines = allLines.filter((l) => l.categoryId === c.id);
+      const eff = effectiveLine(catLines, month);
+      const orig = eff ? lineOriginal(eff.line) : null;
       const f = fact.get(c.id) ?? 0;
       const e = exp.byCategory.get(c.id);
-      if (c.archived && !line && !f && !e) continue;
-      const plan = (line?.planned ?? 0) + (e?.planned ?? 0);
-      const sub = line?.planned == null && !e ? 'план не задан' : [`план ${formatMoney(plan, 'EUR')}`, e?.pending ? `ожидается ${formatMoney(e.pending, 'EUR')}` : ''].filter(Boolean).join(' · ');
+      if (c.archived && !eff && !f && !e) continue;
+      const catOps = incomeOps.filter((o) => o.categoryId === c.id);
+      const recMonth = orig ? catOps.filter((o) => o.date.slice(0, 7) === month).reduce((s, o) => s + (o.currency === orig.currency ? o.amount : (convert(o.amount, o.currency, orig.currency, o.rate ?? rate) ?? 0)), 0) : null;
+      const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: thisMonth, rateNow: rate });
+      const sub = orig
+        ? `план ${formatWhole(orig.amount, orig.currency)} · получено ${formatWhole(/** @type {number} */ (recMonth), orig.currency)}`
+        : e ? `ожидается ${formatMoney(e.pending, 'EUR')}` : 'план не задан';
+      const right = debt && debt.debt > 0
+        ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, 'должны'))
+        : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, formatMoney(f, 'EUR')), el('div', { class: 'muted small' }, 'получено'));
       incomeList.append(
-        el(
-          'a',
-          { class: 'row', href: `#/budget/${month}/${c.id}` },
+        el('a', { class: 'row', href: `#/budget/${month}/${c.id}` },
           avatar(c.name, { income: true }),
           el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), el('div', { class: 'muted small' }, sub)),
-          el('div', { class: 'row-amount' }, el('div', { class: 'income' }, formatMoney(f, 'EUR')), el('div', { class: 'muted small' }, 'получено')),
+          right,
         ),
       );
     }
+    body.append(el('a', { class: 'link-btn', style: 'display:block;margin:0 4px 12px', href: '#/categories' }, '+ Добавить источник дохода (например, отдельно по каждой работе)'));
 
     // Ожидаемые поступления месяца (и задержанные с прошлых месяцев)
     const expectedRows = [...lateFromBefore, ...monthIncome];

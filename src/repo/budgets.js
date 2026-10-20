@@ -9,6 +9,9 @@ import { getDb, getAll, getOne, put, remove, promisify, done } from '../db.js';
  * @property {string} categoryId
  * @property {number | null} planned
  * @property {number | null} limit
+ * @property {import('../money.js').Currency} [plannedCurrency] — валюта, в которой план вводился
+ * @property {number | null} [plannedOriginal] — план в этой валюте (минимальные единицы)
+ * @property {boolean} [repeat] — план действует и в следующих месяцах, пока не задан другой
  * @property {string} updatedAt
  */
 
@@ -46,13 +49,13 @@ export async function getBudgetLine(month, categoryId, db) {
  * Записывает план и лимит категории на месяц. Если оба пустые — строка удаляется.
  * @param {string} month
  * @param {string} categoryId
- * @param {{ planned?: number | null, limit?: number | null }} values
+ * @param {{ planned?: number | null, limit?: number | null, plannedCurrency?: 'EUR' | 'KZT', plannedOriginal?: number | null, repeat?: boolean }} values
  * @param {IDBDatabase} [db]
  */
 export async function setBudgetLine(month, categoryId, values, db) {
   const d = db ?? (await getDb());
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('Не указан месяц');
-  for (const v of [values.planned, values.limit]) {
+  for (const v of [values.planned, values.limit, values.plannedOriginal]) {
     if (v != null && (!Number.isSafeInteger(v) || v < 0)) throw new Error('Сумма должна быть целым числом не меньше нуля');
   }
   const planned = values.planned ?? null;
@@ -63,7 +66,18 @@ export async function setBudgetLine(month, categoryId, values, db) {
     return;
   }
   /** @type {BudgetLine} */
-  const line = { id, month, categoryId, planned, limit, updatedAt: new Date().toISOString() };
+  const plannedCurrency = values.plannedCurrency === 'KZT' ? 'KZT' : 'EUR';
+  const line = {
+    id,
+    month,
+    categoryId,
+    planned,
+    limit,
+    plannedCurrency,
+    plannedOriginal: planned == null ? null : values.plannedOriginal ?? (plannedCurrency === 'EUR' ? planned : null),
+    repeat: Boolean(values.repeat) && planned != null,
+    updatedAt: new Date().toISOString(),
+  };
   await put(d, 'budgets', line);
 }
 
@@ -104,4 +118,27 @@ export async function copyBudget(from, to, db) {
   }
   await done(tx);
   return source.length;
+}
+
+/**
+ * Все строки бюджета категории за все месяцы, по возрастанию месяца.
+ * @param {string} categoryId
+ * @param {IDBDatabase} [db]
+ * @returns {Promise<BudgetLine[]>}
+ */
+export async function listCategoryLines(categoryId, db) {
+  const d = db ?? (await getDb());
+  /** @type {BudgetLine[]} */
+  const all = await getAll(d, 'budgets');
+  return all.filter((l) => l.categoryId === categoryId).sort((a, b) => (a.month < b.month ? -1 : 1));
+}
+
+/**
+ * Все строки бюджета.
+ * @param {IDBDatabase} [db]
+ * @returns {Promise<BudgetLine[]>}
+ */
+export async function listAllLines(db) {
+  const d = db ?? (await getDb());
+  return getAll(d, 'budgets');
 }
