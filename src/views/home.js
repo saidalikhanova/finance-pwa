@@ -1,3 +1,4 @@
+import { money, displayToggle, loadDisplay } from '../display.js';
 import { el, formatDate, formatMonth, currentMonth, shiftMonth } from '../ui.js';
 import { listPlanned } from '../repo/planned.js';
 import { listAllLines } from '../repo/budgets.js';
@@ -25,6 +26,7 @@ const INSTALLED_AT = 'installedAt';
 /** @param {HTMLElement} root */
 export async function renderHome(root) {
   const db = await getDb();
+  await loadDisplay();
   const today = todayISO();
   const month = currentMonth();
 
@@ -51,11 +53,11 @@ export async function renderHome(root) {
     if (spent > line.limit) limitOver++;
   }
   const hero = el('div', { class: 'card hero' },
-    el('div', { class: 'hero-label' }, `Расходы за ${formatMonth(month).toLowerCase()}`),
-    el('div', { class: 'hero-value' }, formatMoney(s.expense, 'EUR')),
+    el('div', { class: 'row-top' }, el('div', { class: 'hero-label' }, `Расходы за ${formatMonth(month).toLowerCase()}`), displayToggle()),
+    el('div', { class: 'hero-value' }, money(s.expense)),
     el('div', { class: 'hero-grid' },
-      el('div', null, el('div', { class: 'small' }, 'Доходы'), el('strong', { class: 'income' }, formatMoney(s.income, 'EUR'))),
-      el('div', null, el('div', { class: 'small' }, 'Баланс'), el('strong', { class: s.balance < 0 ? 'over' : '' }, formatMoney(s.balance, 'EUR', { sign: true }))),
+      el('div', null, el('div', { class: 'small' }, 'Доходы'), el('strong', { class: 'income' }, money(s.income))),
+      el('div', null, el('div', { class: 'small' }, 'Баланс'), el('strong', { class: s.balance < 0 ? 'over' : '' }, money(s.balance, { sign: true }))),
     ),
   );
   if (limitTotal > 0) {
@@ -63,12 +65,12 @@ export async function renderHome(root) {
     // «Можно потратить сегодня»: остаток по всем лимитам, делённый на дни до конца месяца
     const grid = hero.querySelector('.hero-grid');
     grid?.append(
-      el('div', null, el('div', { class: 'small' }, 'Можно сегодня'), el('strong', { class: st.level === 'over' ? 'over' : st.level === 'warn' ? 'warn' : 'income' }, st.perDay != null ? formatMoney(st.perDay, 'EUR') : st.remaining < 0 ? 'лимиты превышены' : '—')),
-      el('div', null, el('div', { class: 'small' }, 'Осталось по лимитам'), el('strong', { class: st.remaining < 0 ? 'over' : '' }, formatMoney(st.remaining, 'EUR'))),
+      el('div', null, el('div', { class: 'small' }, 'Можно сегодня'), el('strong', { class: st.level === 'over' ? 'over' : st.level === 'warn' ? 'warn' : 'income' }, st.perDay != null ? money(st.perDay) : st.remaining < 0 ? 'лимиты превышены' : '—')),
+      el('div', null, el('div', { class: 'small' }, 'Осталось по лимитам'), el('strong', { class: st.remaining < 0 ? 'over' : '' }, money(st.remaining))),
     );
     hero.append(
       el('div', { class: `bar bar-${st.level}` }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, st.percent)}%` })),
-      el('div', { class: 'small muted' }, `Лимиты: ${formatMoney(limitSpent, 'EUR')} из ${formatMoney(limitTotal, 'EUR')} (${st.percent} %)${limitOver ? ` · превышено: ${limitOver}` : ''}`),
+      el('div', { class: 'small muted' }, `Лимиты: ${money(limitSpent)} из ${money(limitTotal)} (${st.percent} %)${limitOver ? ` · превышено: ${limitOver}` : ''}`),
     );
   }
   root.append(hero);
@@ -108,7 +110,7 @@ export async function renderHome(root) {
     card.append(el('div', { class: 'hero-label', style: 'padding-top:12px' }, 'Ожидаемые поступления'));
     const lines = [[month, sumFor(month)], [nextMonth, sumFor(nextMonth)]].filter(([, v]) => v);
     for (const [m, v] of lines) {
-      card.append(el('div', { class: 'cat-row' }, el('span', { class: 'cat-name' }, `${m === month ? 'В этом месяце' : formatMonth(String(m))}`), el('strong', { class: 'income' }, formatMoney(Number(v), 'EUR'))));
+      card.append(el('div', { class: 'cat-row' }, el('span', { class: 'cat-name' }, `${m === month ? 'В этом месяце' : formatMonth(String(m))}`), el('strong', { class: 'income' }, money(Number(v)))));
     }
     if (late.length) {
       card.append(el('div', { class: 'small warn', style: 'padding:8px 0 4px' }, `Задерживается: ${late.length}`));
@@ -181,7 +183,7 @@ export async function renderHome(root) {
       }
       list.append(upcomingRow(u));
     }
-    root.append(list, el('p', { class: 'muted small', style: 'margin:0 4px 12px' }, `Итого к оплате: ${formatMoney(Math.max(0, totalEur), 'EUR')}${unknown ? ` (без курса: ${unknown})` : ''}`));
+    root.append(list, el('p', { class: 'muted small', style: 'margin:0 4px 12px' }, `Итого к оплате: ${money(Math.max(0, totalEur))}${unknown ? ` (без курса: ${unknown})` : ''}`));
   }
   root.append(el('div', { class: 'btn-row' }, el('a', { class: 'btn btn-secondary', href: '#/calendar' }, 'Календарь'), el('a', { class: 'btn btn-secondary', href: '#/payments' }, 'Платежи')));
 }

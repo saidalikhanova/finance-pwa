@@ -1,3 +1,4 @@
+import { money, displayToggle, loadDisplay } from '../display.js';
 import { el, avatar, toast, confirmDialog, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney, formatWhole } from '../money.js';
 import { listCategories } from '../repo/categories.js';
@@ -17,6 +18,7 @@ export const budgetState = { month: currentMonth() };
 
 /** @param {HTMLElement} root */
 export async function renderBudget(root) {
+  await loadDisplay();
   const monthLabel = el('span', { class: 'month-label' }, formatMonth(budgetState.month));
   const body = el('div');
 
@@ -28,6 +30,7 @@ export async function renderBudget(root) {
       monthLabel,
       el('button', { class: 'icon-btn', 'aria-label': 'Следующий месяц', onclick: () => go(1) }, '›'),
     ),
+    el('div', { class: 'display-row' }, el('span', { class: 'muted small' }, 'Показывать в'), displayToggle()),
     body,
   );
 
@@ -102,7 +105,7 @@ export async function renderBudget(root) {
         totalRow('Доходы', planIncome, factIncome, 'income'),
         totalRow('Расходы', planExpense, factExpense),
         totalRow('Баланс', planIncome - planExpense, factIncome - factExpense, '', true),
-        exp.pending ? el('p', { class: 'small', style: 'margin:8px 0 0' }, `Ещё ожидается поступлений: ${formatMoney(exp.pending, 'EUR')}`) : null,
+        exp.pending ? el('p', { class: 'small', style: 'margin:8px 0 0' }, `Ещё ожидается поступлений: ${money(exp.pending)}`) : null,
         el('p', { class: 'muted small', style: 'margin:8px 0 0' }, 'План вы задаёте сами, нажав на категорию. Факт — из записанных операций и отмеченных поступлений.'),
       ),
     );
@@ -137,10 +140,10 @@ export async function renderBudget(root) {
       const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: thisMonth, rateNow: rate });
       const sub = orig
         ? `план ${formatWhole(orig.amount, orig.currency)} · получено ${formatWhole(/** @type {number} */ (recMonth), orig.currency)}`
-        : e ? `ожидается ${formatMoney(e.pending, 'EUR')}` : 'план не задан';
+        : e ? `ожидается ${money(e.pending)}` : 'план не задан';
       const right = debt && debt.debt > 0
         ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, 'должны'))
-        : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, formatMoney(f, 'EUR')), el('div', { class: 'muted small' }, 'получено'));
+        : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, money(f)), el('div', { class: 'muted small' }, 'получено'));
       incomeList.append(
         el('a', { class: 'row', href: `#/budget/${month}/${c.id}` },
           avatar(c.name, { income: true }),
@@ -179,7 +182,7 @@ export async function renderBudget(root) {
             { class: 'cat-row' },
             box,
             el('span', { class: 'cat-name' }, w.name, el('span', { class: 'muted small' }, ` · ${categories.find((c) => c.id === w.categoryId)?.name ?? ''}`)),
-            el('span', { class: 'small' }, eur == null ? 'без цены' : formatMoney(eur, 'EUR')),
+            el('span', { class: 'small' }, eur == null ? 'без цены' : money(eur)),
           ),
         );
       }
@@ -248,7 +251,7 @@ export function expectedRow(p, today, rate) {
     ),
     el('div', { class: 'row-amount' },
       el('div', { class: st.status === 'received' ? 'income' : '' }, formatMoney(shown, p.currency)),
-      eur != null && st.status !== 'received' ? el('div', { class: 'muted small' }, `≈ ${formatMoney(eur, 'EUR')}`) : null,
+      eur != null && st.status !== 'received' ? el('div', { class: 'muted small' }, `≈ ${money(eur)}`) : null,
       st.status !== 'received' ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?planned=${p.id}` }, 'Получено') : null,
     ),
   );
@@ -266,8 +269,8 @@ function totalRow(label, plan, fact, cls = '', signed = false) {
     'div',
     { class: 'plan-row' },
     el('span', null, label),
-    el('span', { class: 'muted' }, formatMoney(plan, 'EUR', { sign: signed })),
-    el('span', { class: cls }, formatMoney(fact, 'EUR', { sign: signed })),
+    el('span', { class: 'muted' }, money(plan, { sign: signed })),
+    el('span', { class: cls }, money(fact, { sign: signed })),
   );
 }
 
@@ -284,21 +287,21 @@ function expenseRow(c, line, fact, month, today) {
   const planned = line?.planned ?? null;
 
   const main = el('div', { class: 'row-main' }, el('div', null, name));
-  const amount = el('div', { class: 'row-amount' }, el('div', null, formatMoney(fact, 'EUR')));
+  const amount = el('div', { class: 'row-amount' }, el('div', null, money(fact)));
   const row = el('a', { class: 'row row-budget', href: `#/budget/${month}/${c.id}` }, el('div', { class: 'row-top' }, el('div', { style: 'display:flex;gap:12px;align-items:center;min-width:0' }, avatar(c.name), main), amount));
 
   const notes = [];
-  if (planned != null) notes.push(`план ${formatMoney(planned, 'EUR')}`);
+  if (planned != null) notes.push(`план ${money(planned)}`);
 
   if (limit != null) {
     const s = limitStatus(limit, fact, month, today);
-    amount.append(el('div', { class: `small ${s.level === 'ok' ? 'muted' : s.level === 'warn' ? 'warn' : 'over'}` }, `${s.percent} % из ${formatMoney(limit, 'EUR')}`));
+    amount.append(el('div', { class: `small ${s.level === 'ok' ? 'muted' : s.level === 'warn' ? 'warn' : 'over'}` }, `${s.percent} % из ${money(limit)}`));
     const bar = el('div', { class: `bar bar-${s.level}` }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, s.percent)}%` }));
     row.append(bar);
-    if (s.remaining < 0) notes.push(`превышение ${formatMoney(-s.remaining, 'EUR')}`);
+    if (s.remaining < 0) notes.push(`превышение ${money(-s.remaining)}`);
     else {
-      notes.push(`осталось ${formatMoney(s.remaining, 'EUR')}`);
-      if (s.perDay != null) notes.push(`${formatMoney(s.perDay, 'EUR')} в день (${s.daysLeft} ${pluralDays(s.daysLeft)})`);
+      notes.push(`осталось ${money(s.remaining)}`);
+      if (s.perDay != null) notes.push(`${money(s.perDay)} в день (${s.daysLeft} ${pluralDays(s.daysLeft)})`);
     }
   } else {
     amount.append(el('div', { class: 'muted small' }, 'лимит не задан'));

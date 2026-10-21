@@ -108,6 +108,13 @@ export const MIGRATIONS = [
       };
     },
   },
+  {
+    version: 9,
+    upgrade(db) {
+      // Мои долги: кому и сколько должна. Возвраты — операции-расходы с debtId.
+      db.createObjectStore('debts', { keyPath: 'id' });
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

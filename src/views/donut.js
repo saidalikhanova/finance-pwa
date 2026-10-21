@@ -1,3 +1,4 @@
+import { money } from '../display.js';
 import { el, categoryColor, avatar } from '../ui.js';
 import { formatMoney } from '../money.js';
 
@@ -44,7 +45,7 @@ export function donut(rows, month) {
     seg.setAttribute('transform', `rotate(-90 ${size / 2} ${size / 2})`);
     seg.setAttribute('class', 'donut-seg');
     const title = document.createElementNS(ns, 'title');
-    title.textContent = `${s.name}: ${formatMoney(s.amount, 'EUR')} (${s.share} %)`;
+    title.textContent = `${s.name}: ${money(s.amount)} (${s.share} %)`;
     seg.append(title);
     if (s.categoryId) seg.addEventListener('click', () => (location.hash = `#/operations?month=${month}&category=${s.categoryId}`));
     svg.append(seg);
@@ -55,7 +56,7 @@ export function donut(rows, month) {
   label.setAttribute('y', String(size / 2 + 5));
   label.setAttribute('text-anchor', 'middle');
   label.setAttribute('class', 'donut-label');
-  label.textContent = formatMoney(total, 'EUR').replace(' €', '');
+  label.textContent = money(total).replace(/\u00a0[€₸]$/, '');
   svg.append(label);
 
   const legend = el('div', { class: 'donut-legend' });
@@ -66,7 +67,7 @@ export function donut(rows, month) {
       s.categoryId ? avatar(s.name, { small: true }) : el('div', { class: 'avatar avatar-sm', style: 'background:var(--text-muted)' }, '…'),
       el('span', { class: 'donut-name' }, s.name),
       el('span', { class: 'muted small' }, `${s.share} %`),
-      el('span', { class: 'donut-sum' }, formatMoney(s.amount, 'EUR')),
+      el('span', { class: 'donut-sum' }, money(s.amount)),
     );
     legend.append(row);
   }

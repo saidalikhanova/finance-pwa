@@ -8,7 +8,7 @@ export const BACKUP_FORMAT = 'finance-backup';
 export const BACKUP_VERSION = 1;
 
 /** Таблицы в порядке восстановления. Фотографии — отдельно. */
-export const DATA_STORES = ['settings', 'categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'products'];
+export const DATA_STORES = ['settings', 'categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'products', 'debts'];
 
 /** Настройки, которые не переносятся между устройствами. */
 const LOCAL_SETTINGS = new Set(['installedAt', 'lastBackupAt', 'shoppingList']);

@@ -22,6 +22,7 @@ import { normalizeItems, itemsTotal, categoryAmountsEur } from '../items.js';
  * @property {import('../items.js').Item[]} items — позиции покупки; при наличии сумма операции равна их сумме
  * @property {string} store — магазин (необязательно)
  * @property {string | null} photoId — фото чека
+ * @property {string | null} [debtId] — возврат долга (раздел «Мои долги»)
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -71,6 +72,7 @@ export function normalizeOperation(input) {
     items,
     store: (input.store ?? '').trim(),
     photoId: input.photoId ?? null,
+    debtId: input.debtId ?? null,
   };
 }
 

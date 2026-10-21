@@ -414,3 +414,13 @@ details[hidden] { display: none; }
 .debt-card.debt-owed { background: var(--warn-soft); }
 .debt-card.debt-owed .hero-value { color: var(--warn); }
 .debt-card.debt-ok { border-left: 4px solid var(--ok); }
+
+/* Валюта показа итогов */
+.segmented-mini { padding: 2px; flex: none; }
+.segmented-mini button { min-height: 28px; min-width: 36px; font-size: 13px; padding: 0 8px; }
+.display-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: -4px 0 10px; }
+
+/* Валюта показа итогов */
+.segmented-mini { padding: 2px; flex: none; }
+.segmented-mini button { min-height: 28px; min-width: 36px; font-size: 13px; padding: 0 8px; }
+.display-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: -4px 0 10px; }
