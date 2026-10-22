@@ -5,7 +5,7 @@ import { formatMoney as fmtMoney, amountToInput } from '../money.js';
 
 /** Без «,00» у целых сумм: 600 000 ₸ вместо 600 000,00 ₸. @param {number} a @param {'EUR' | 'KZT'} c */
 const formatMoney = (a, c) => fmtMoney(a, c).replace(/,00(?=\u00a0)/, '');
-import { setBudgetLine, listCategoryLines, removeFromMonth } from '../repo/budgets.js';
+import { setBudgetLine, listCategoryLines, removeFromMonth, restoreToMonth } from '../repo/budgets.js';
 import { createOperation, listOperations, monthRange, todayISO } from '../repo/operations.js';
 import { suggestRate, saveRate } from '../repo/rates.js';
 import { effectiveLine, lineOriginal, incomeDebt } from '../income.js';
@@ -38,6 +38,7 @@ export async function renderIncomeLine(root, category, month) {
     const { from, to } = monthRange(month);
     const monthOps = allIncome.filter((o) => o.date >= from && o.date <= to).sort((a, b) => (a.date < b.date ? -1 : 1));
     const eff = effectiveLine(lines, month);
+    const isHidden = Boolean(lines.find((l) => l.month === month)?.hidden);
     const orig = eff ? lineOriginal(eff.line) : null;
     body.innerHTML = '';
 
@@ -74,7 +75,9 @@ export async function renderIncomeLine(root, category, month) {
         el('label', { class: 'cat-row', style: 'border:0;padding:8px 0' }, repeatBox, el('span', { class: 'cat-name' }, 'Каждый месяц, пока не изменю')),
         eff?.inherited ? el('p', { class: 'muted small', style: 'margin:0 0 8px' }, `План действует с ${formatMonthGen(eff.line.month)} (каждый месяц).`) : null,
         el('button', { class: 'btn', type: 'button', style: 'width:100%', onclick: savePlan }, 'Сохранить план'),
-        eff ? el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: removePlan }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`) : null,
+        isHidden
+          ? el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: async () => { await restoreToMonth(month, category.id); toast('Возвращено в бюджет месяца'); refresh(); } }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`)
+          : el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: removePlan }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`),
       ),
     );
 
@@ -132,7 +135,7 @@ export async function renderIncomeLine(root, category, month) {
     }
 
     async function removePlan() {
-      const ok = await confirmDialog(`Убрать план «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Другие месяцы, категория и полученные суммы не изменятся.`);
+      const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Другие месяцы, категория и полученные суммы не изменятся.`);
       if (!ok) return;
       await removeFromMonth(month, category.id);
       toast('Убрано из бюджета месяца');

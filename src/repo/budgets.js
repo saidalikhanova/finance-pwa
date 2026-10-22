@@ -10,6 +10,7 @@ import { effectiveLine } from '../income.js';
  * @property {string} categoryId
  * @property {number | null} planned
  * @property {number | null} limit
+ * @property {boolean} [hidden] — категория убрана из бюджета этого месяца
  * @property {import('../money.js').Currency} [plannedCurrency] — валюта, в которой план вводился
  * @property {number | null} [plannedOriginal] — план в этой валюте (минимальные единицы)
  * @property {boolean} [repeat] — план действует и в следующих месяцах, пока не задан другой
@@ -83,10 +84,10 @@ export async function setBudgetLine(month, categoryId, values, db) {
 }
 
 /**
- * Убирает категорию из бюджета одного месяца; другие месяцы не меняются.
- * Если план этого месяца пришёл из «каждый месяц» более раннего месяца,
- * месяц помечается нулевым планом, а следующий месяц получает свою копию плана,
- * чтобы повтор продолжился.
+ * Убирает категорию из бюджета одного месяца: план и лимит стираются, категория
+ * не показывается в списке этого месяца. Другие месяцы не меняются: если план
+ * пришёл из «каждый месяц» более раннего месяца, месяц получает нулевой план,
+ * а следующий месяц — свою копию плана, чтобы повтор продолжился.
  * @param {string} month
  * @param {string} categoryId
  * @param {IDBDatabase} [db]
@@ -96,17 +97,38 @@ export async function removeFromMonth(month, categoryId, db) {
   const lines = await listCategoryLines(categoryId, d);
   const next = nextMonth(month);
   const nextEff = effectiveLine(lines, next);
-  const rest = lines.filter((l) => l.month !== month);
-  const prevEff = effectiveLine(rest, month);
+  const prevEff = effectiveLine(lines.filter((l) => l.month !== month), month);
   const now = new Date().toISOString();
-  if (prevEff) {
-    await put(d, 'budgets', { ...prevEff.line, id: lineId(month, categoryId), month, planned: 0, plannedOriginal: 0, limit: null, repeat: false, updatedAt: now });
-  } else {
-    await remove(d, 'budgets', lineId(month, categoryId));
-  }
+  /** @type {BudgetLine} */
+  const hiddenLine = {
+    id: lineId(month, categoryId),
+    month,
+    categoryId,
+    planned: prevEff ? 0 : null,
+    limit: null,
+    plannedCurrency: prevEff?.line.plannedCurrency ?? 'EUR',
+    plannedOriginal: prevEff ? 0 : null,
+    repeat: false,
+    hidden: true,
+    updatedAt: now,
+  };
+  await put(d, 'budgets', hiddenLine);
   if (nextEff?.inherited) {
     await put(d, 'budgets', { ...nextEff.line, id: lineId(next, categoryId), month: next, updatedAt: now });
   }
+}
+
+/**
+ * Возвращает убранную категорию в бюджет месяца (без плана; план «каждый месяц»
+ * более раннего месяца снова действует).
+ * @param {string} month
+ * @param {string} categoryId
+ * @param {IDBDatabase} [db]
+ */
+export async function restoreToMonth(month, categoryId, db) {
+  const d = db ?? (await getDb());
+  const line = await getBudgetLine(month, categoryId, d);
+  if (line?.hidden) await remove(d, 'budgets', line.id);
 }
 
 /** @param {string} month */

@@ -2,7 +2,7 @@ import { el, toast, formatMonth, confirmDialog } from '../ui.js';
 import { parseAmount, amountToInput, formatMoney, toEurCents, fromEurCents, formatRate } from '../money.js';
 import { navigate } from '../router.js';
 import { getCategory } from '../repo/categories.js';
-import { getBudgetLine, setBudgetLine, removeFromMonth } from '../repo/budgets.js';
+import { getBudgetLine, setBudgetLine, removeFromMonth, restoreToMonth } from '../repo/budgets.js';
 import { sumByCategory, todayISO } from '../repo/operations.js';
 import { suggestRate, saveRate } from '../repo/rates.js';
 import { budgetState } from './budget.js';
@@ -109,16 +109,24 @@ export async function renderBudgetLine(root, params) {
       el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/add?type=income&category=${categoryId}&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, '+ Уже получен'),
     ]),
     el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, 'Операции категории за месяц'),
-    line ? el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRemove }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`) : null,
+    line?.hidden
+      ? el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`)
+      : el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRemove }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`),
   );
   root.append(form);
   plannedInput.focus();
 
   async function onRemove() {
-    const ok = await confirmDialog(`Убрать план и лимит категории «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Категория и записанные операции останутся.`);
+    const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Категория останется в других месяцах, записанные операции не удаляются.`);
     if (!ok) return;
     await removeFromMonth(month, categoryId);
     toast('Убрано из бюджета месяца');
+    navigate('/budget');
+  }
+
+  async function onRestore() {
+    await restoreToMonth(month, categoryId);
+    toast('Категория возвращена в бюджет месяца');
     navigate('/budget');
   }
 

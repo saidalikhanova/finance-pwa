@@ -2,7 +2,7 @@ import { money, displayToggle, loadDisplay } from '../display.js';
 import { el, avatar, toast, confirmDialog, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney, formatWhole } from '../money.js';
 import { listCategories } from '../repo/categories.js';
-import { getBudget, listBudgetMonths, copyBudget, listAllLines } from '../repo/budgets.js';
+import { getBudget, listBudgetMonths, copyBudget, listAllLines, restoreToMonth } from '../repo/budgets.js';
 import { sumByCategory, todayISO, monthRange, listOperations } from '../repo/operations.js';
 import { effectiveLine, lineOriginal, incomeDebt, effectivePlanEur, convert } from '../income.js';
 import { listPlanned } from '../repo/planned.js';
@@ -117,7 +117,14 @@ export async function renderBudget(root) {
     );
     const incomeList = el('div', { class: 'list' });
     body.append(incomeList);
+    // Категории, убранные из этого месяца (без записанных сумм)
+    /** @type {typeof categories} */
+    const hidden = [];
     for (const c of categories.filter((c) => c.kind === 'income')) {
+      if (byCat.get(c.id)?.hidden && !fact.get(c.id)) {
+        if (!c.archived) hidden.push(c);
+        continue;
+      }
       const catLines = allLines.filter((l) => l.categoryId === c.id);
       const eff = effectiveLine(catLines, month);
       const orig = eff ? lineOriginal(eff.line) : null;
@@ -149,10 +156,30 @@ export async function renderBudget(root) {
     for (const c of categories.filter((c) => c.kind === 'expense')) {
       const line = byCat.get(c.id);
       const f = fact.get(c.id) ?? 0;
+      if (line?.hidden && !f) {
+        if (!c.archived) hidden.push(c);
+        continue;
+      }
       if (c.archived && !line && !f) continue;
       expenseList.append(expenseRow(c, line, f, month, today));
     }
     body.append(expenseList);
+
+    if (hidden.length) {
+      const details = el('details', { class: 'card list-card' }, el('summary', { class: 'muted' }, `Убраны из этого месяца: ${hidden.length}`));
+      for (const c of hidden) {
+        details.append(el('div', { class: 'cat-row' },
+          avatar(c.name, { income: c.kind === 'income', small: true }),
+          el('span', { class: 'cat-name' }, c.name),
+          el('button', { class: 'link-btn', type: 'button', onclick: async () => {
+            await restoreToMonth(month, c.id);
+            toast(`«${c.name}» возвращена в ${formatMonth(month).toLowerCase()}`);
+            refresh();
+          } }, 'Вернуть'),
+        ));
+      }
+      body.append(details);
+    }
 
     // Ожидаемые поступления месяца (и задержанные с прошлых месяцев)
     const expectedRows = [...lateFromBefore, ...monthIncome];

@@ -135,9 +135,24 @@ test('бюджет: «Убрать из бюджета месяца» — дру
   const debt = incomeDebt({ lines, ops: [], upTo: '2026-11', rateNow: null });
   assert.equal(debt?.debt, 1_200_000 * T, 'долг без октября: сентябрь + ноябрь');
 
-  // Ошибочно введённый план только в октябре — строка удаляется
+  // Октябрь можно вернуть — снова действует план «каждый месяц»
+  const { restoreToMonth, getBudgetLine: get } = await import('../src/repo/budgets.js');
+  assert.ok((await get('2026-10', 'sal', db))?.hidden, 'октябрь помечен как убранный');
+  await restoreToMonth('2026-10', 'sal', db);
+  lines = await listCategoryLines('sal', db);
+  assert.equal(effectiveLine(lines, '2026-10')?.line.plannedOriginal, 600000 * T, 'октябрь вернулся');
+
+  // Ошибочно введённый план только в октябре; и категория без плана
   await setBudgetLine('2026-10', 'gift', { planned: 5000, limit: 7000 }, db);
   await removeFromMonth('2026-10', 'gift', db);
-  assert.equal((await listCategoryLines('gift', db)).length, 0, 'строки нет');
+  const g = await get('2026-10', 'gift', db);
+  assert.equal(g?.planned, null, 'план стёрт');
+  assert.equal(g?.limit, null, 'лимит стёрт');
+  assert.ok(g?.hidden, 'убрана из списка месяца');
+  assert.equal((await listCategoryLines('gift', db)).filter((l) => l.month !== '2026-10').length, 0, 'другие месяцы не тронуты');
+  await removeFromMonth('2026-10', 'empty', db);
+  assert.ok((await get('2026-10', 'empty', db))?.hidden, 'категория без плана тоже убирается');
+  await setBudgetLine('2026-10', 'empty', { planned: 100, limit: null }, db);
+  assert.ok(!(await get('2026-10', 'empty', db))?.hidden, 'новый план возвращает категорию в месяц');
   db.close();
 });
