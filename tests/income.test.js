@@ -118,3 +118,26 @@ test('доход (база): работодатель и срок выплаты
   await assert.rejects(() => setIncomeTerms(e.id, { payDay: 5 }, db), 'не для расходов');
   db.close();
 });
+
+test('бюджет: «Убрать из бюджета месяца» — другие месяцы не меняются', async () => {
+  const { removeFromMonth } = await import('../src/repo/budgets.js');
+  await deleteDatabase(TEST_DB);
+  const db = await openDatabase(TEST_DB);
+  const kzt = (/** @type {number} */ t) => ({ planned: 1, limit: null, plannedCurrency: /** @type {'KZT'} */ ('KZT'), plannedOriginal: t * T, repeat: true });
+  // План «каждый месяц» с сентября; октябрь убираем
+  await setBudgetLine('2026-09', 'sal', kzt(600000), db);
+  await removeFromMonth('2026-10', 'sal', db);
+  let lines = await listCategoryLines('sal', db);
+  assert.equal(effectiveLine(lines, '2026-09')?.line.plannedOriginal, 600000 * T, 'сентябрь на месте');
+  assert.equal(effectiveLine(lines, '2026-10'), null, 'октябрь убран');
+  assert.equal(effectiveLine(lines, '2026-11')?.line.plannedOriginal, 600000 * T, 'ноябрь продолжает план');
+  assert.equal(effectiveLine(lines, '2027-03')?.line.plannedOriginal, 600000 * T, 'и дальше');
+  const debt = incomeDebt({ lines, ops: [], upTo: '2026-11', rateNow: null });
+  assert.equal(debt?.debt, 1_200_000 * T, 'долг без октября: сентябрь + ноябрь');
+
+  // Ошибочно введённый план только в октябре — строка удаляется
+  await setBudgetLine('2026-10', 'gift', { planned: 5000, limit: 7000 }, db);
+  await removeFromMonth('2026-10', 'gift', db);
+  assert.equal((await listCategoryLines('gift', db)).length, 0, 'строки нет');
+  db.close();
+});

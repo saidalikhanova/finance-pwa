@@ -1,4 +1,5 @@
 import { getDb, getAll, getOne, put, remove, promisify, done } from '../db.js';
+import { effectiveLine } from '../income.js';
 
 /**
  * Строка бюджета: план и лимит категории на месяц. Суммы — в центах евро.
@@ -79,6 +80,39 @@ export async function setBudgetLine(month, categoryId, values, db) {
     updatedAt: new Date().toISOString(),
   };
   await put(d, 'budgets', line);
+}
+
+/**
+ * Убирает категорию из бюджета одного месяца; другие месяцы не меняются.
+ * Если план этого месяца пришёл из «каждый месяц» более раннего месяца,
+ * месяц помечается нулевым планом, а следующий месяц получает свою копию плана,
+ * чтобы повтор продолжился.
+ * @param {string} month
+ * @param {string} categoryId
+ * @param {IDBDatabase} [db]
+ */
+export async function removeFromMonth(month, categoryId, db) {
+  const d = db ?? (await getDb());
+  const lines = await listCategoryLines(categoryId, d);
+  const next = nextMonth(month);
+  const nextEff = effectiveLine(lines, next);
+  const rest = lines.filter((l) => l.month !== month);
+  const prevEff = effectiveLine(rest, month);
+  const now = new Date().toISOString();
+  if (prevEff) {
+    await put(d, 'budgets', { ...prevEff.line, id: lineId(month, categoryId), month, planned: 0, plannedOriginal: 0, limit: null, repeat: false, updatedAt: now });
+  } else {
+    await remove(d, 'budgets', lineId(month, categoryId));
+  }
+  if (nextEff?.inherited) {
+    await put(d, 'budgets', { ...nextEff.line, id: lineId(next, categoryId), month: next, updatedAt: now });
+  }
+}
+
+/** @param {string} month */
+function nextMonth(month) {
+  const [y, m] = month.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
 /**

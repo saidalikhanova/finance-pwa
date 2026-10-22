@@ -29,7 +29,8 @@ export function lineOriginal(l) {
  */
 export function effectiveLine(lines, month) {
   const exact = lines.find((l) => l.month === month);
-  if (exact) return { line: exact, inherited: false };
+  // Нулевой план — месяц убран из бюджета («Убрать из бюджета месяца»)
+  if (exact) return exact.planned ? { line: exact, inherited: false } : null;
   const prev = lines.filter((l) => l.month < month).sort((a, b) => (a.month < b.month ? 1 : -1))[0];
   if (prev && prev.repeat && prev.planned) return { line: prev, inherited: true };
   return null;
