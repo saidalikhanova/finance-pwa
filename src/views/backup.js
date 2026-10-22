@@ -5,7 +5,7 @@ import { shareOrDownload } from '../ics.js';
 
 const STORE_LABEL = /** @type {Record<string, string>} */ ({
   settings: 'настройки', categories: 'категории', operations: 'операции', rates: 'курсы', budgets: 'строки бюджета',
-  recurring: 'повторяющиеся платежи', planned: 'разовые платежи', wishes: 'желаемые покупки', products: 'продукты', photos: 'фотографии',
+  recurring: 'повторяющиеся платежи', planned: 'разовые платежи', wishes: 'желаемые покупки', products: 'продукты', debts: 'долги', photos: 'фотографии',
 });
 
 /** @param {HTMLElement} root */

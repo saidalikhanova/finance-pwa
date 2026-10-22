@@ -5,6 +5,7 @@ export function renderMore(root) {
   root.append(
     el('div', { class: 'card list-card' },
       menu('#/import', 'Импорт из чата'),
+      menu('#/debts', 'Мои долги'),
       menu('#/payments', 'Платежи'),
       menu('#/calendar', 'Календарь платежей'),
       menu('#/wishes', 'Желаемые покупки'),

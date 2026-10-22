@@ -3,6 +3,9 @@ import { el, formatDate, formatMonth, currentMonth, shiftMonth } from '../ui.js'
 import { listPlanned } from '../repo/planned.js';
 import { listAllLines } from '../repo/budgets.js';
 import { incomeDebt } from '../income.js';
+import { listDebts, listRepayments } from '../repo/debts.js';
+import { debtStatus, totalsByCurrency } from '../debts.js';
+import { debtLabel } from './debts.js';
 import { expectedStatus, incomeExpectations } from '../expected.js';
 import { expectedRow } from './budget.js';
 import { getDb, getSetting, setSetting } from '../db.js';
@@ -95,6 +98,28 @@ export async function renderHome(root) {
         ));
       }
       root.append(card);
+    }
+  }
+
+  // Мои долги: кому и сколько осталось вернуть
+  {
+    const debts = await listDebts(db);
+    if (debts.length) {
+      const reps = await listRepayments(db);
+      const rateNow = (await suggestRate(today, db))?.rate ?? null;
+      const open = debts.map((debt) => ({ debt, st: debtStatus(debt, reps, today, rateNow) })).filter((r) => r.st.status !== 'closed');
+      if (open.length) {
+        const card = el('div', { class: 'card list-card debt-owed' });
+        const totals = totalsByCurrency(open);
+        card.append(el('div', { class: 'row-top', style: 'padding-top:12px' }, el('div', { class: 'hero-label' }, 'Вы должны'), el('strong', null, [...totals].map(([c, v]) => formatWhole(v, c)).join(' + '))));
+        for (const { debt, st } of open) {
+          card.append(el('a', { class: 'menu-row', href: `#/debts/${debt.id}` },
+            el('span', null, debt.person, el('div', { class: `small ${st.status === 'overdue' ? 'warn' : 'muted'}` }, debtLabel(st, debt.dueDate))),
+            el('strong', null, formatWhole(st.remaining, debt.currency)),
+          ));
+        }
+        root.append(card);
+      }
     }
   }
 

@@ -15,5 +15,6 @@ import './products.test.js';
 import './backup.test.js';
 import './expected.test.js';
 import './income.test.js';
+import './debts.test.js';
 
 run();

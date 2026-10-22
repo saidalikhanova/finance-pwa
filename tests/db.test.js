@@ -25,7 +25,7 @@ test('миграции идут по порядку, версии строго �
 test('новая база создаётся с актуальной схемой', async () => {
   const db = await fresh();
   assert.equal(db.version, SCHEMA_VERSION);
-  for (const name of ['settings', 'categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'photos', 'products']) {
+  for (const name of ['settings', 'categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'photos', 'products', 'debts']) {
     assert.ok(db.objectStoreNames.contains(name), `нет таблицы ${name}`);
   }
   db.close();
