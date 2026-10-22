@@ -426,3 +426,14 @@ details[hidden] { display: none; }
 .display-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: -4px 0 10px; }
 .table th + th, .table td + td { padding-left: 8px; }
 .debt-card .table { font-size: 12.5px; }
+
+/* Кнопка «Назад»: отдельной строкой над заголовком, крупная зона нажатия */
+.topbar { flex-wrap: wrap; row-gap: 0; }
+.back-link {
+  flex-basis: 100%;
+  display: inline-flex; align-items: center; gap: 4px;
+  width: auto; height: auto; margin: 0 0 2px -4px; padding: 6px 4px;
+  font-size: 17px; font-weight: 500;
+}
+.back-link span { font-size: 28px; line-height: 0.8; margin-top: -3px; }
+.back-link[hidden] { display: none; }

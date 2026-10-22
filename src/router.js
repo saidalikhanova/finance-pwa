@@ -53,9 +53,39 @@ function match(path) {
   return null;
 }
 
-/** @param {string} path */
+// Стек экранов внутри приложения: «Назад» возвращает туда, откуда пришли.
+/** @type {string[]} */
+const stack = [];
+
+/**
+ * Переход после действия (сохранить, удалить): заменяет текущий экран,
+ * чтобы «Назад» не возвращал в уже заполненную форму.
+ * @param {string} path
+ */
 export function navigate(path) {
-  location.hash = `#${path}`;
+  // Возврат на предыдущий экран — шагом назад по истории, без дубля в истории
+  if (stack[stack.length - 2] === path) {
+    history.back();
+    return;
+  }
+  stack.pop();
+  location.replace(`#${path}`);
+}
+
+/** @type {string} */
+let fallbackBack = '/';
+
+/** Назад: по истории, если есть куда, иначе на родительский экран. */
+export function goBack() {
+  if (stack.length > 1) history.back();
+  else location.replace(`#${fallbackBack}`);
+}
+
+/** @param {string} path */
+function track(path) {
+  if (stack[stack.length - 1] === path) return;
+  if (stack[stack.length - 2] === path) stack.pop();
+  else stack.push(path);
 }
 
 /**
@@ -74,6 +104,8 @@ export async function renderCurrent(root, titleEl, backEl) {
   document.title = route.title === 'Главная' ? 'Финансы' : `${route.title} — Финансы`;
   backEl.hidden = !route.back;
   backEl.href = route.back ? `#${route.back}` : '#/';
+  fallbackBack = route.back ?? '/';
+  track(path);
 
   root.innerHTML = '';
   window.scrollTo(0, 0);
@@ -92,5 +124,25 @@ export async function renderCurrent(root, titleEl, backEl) {
  */
 export function start(root, titleEl, backEl) {
   window.addEventListener('hashchange', () => renderCurrent(root, titleEl, backEl));
+  backEl.addEventListener('click', (e) => {
+    e.preventDefault();
+    goBack();
+  });
+  // Жест «смахнуть от левого края вправо» — назад (в установленном приложении
+  // на iPhone системного жеста нет)
+  /** @type {{ x: number, y: number } | null} */
+  let touch = null;
+  window.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    touch = t && t.clientX < 28 && !backEl.hidden ? { x: t.clientX, y: t.clientY } : null;
+  }, { passive: true });
+  window.addEventListener('touchend', (e) => {
+    if (!touch) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touch.x;
+    const dy = Math.abs(t.clientY - touch.y);
+    touch = null;
+    if (dx > 70 && dy < 60) goBack();
+  }, { passive: true });
   return renderCurrent(root, titleEl, backEl);
 }
