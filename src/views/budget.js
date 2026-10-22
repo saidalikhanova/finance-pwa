@@ -110,17 +110,6 @@ export async function renderBudget(root) {
       ),
     );
 
-    // Расходы
-    body.append(el('h2', { class: 'section-title' }, 'Расходы'));
-    const expenseList = el('div', { class: 'list' });
-    for (const c of categories.filter((c) => c.kind === 'expense')) {
-      const line = byCat.get(c.id);
-      const f = fact.get(c.id) ?? 0;
-      if (c.archived && !line && !f) continue;
-      expenseList.append(expenseRow(c, line, f, month, today));
-    }
-    body.append(expenseList);
-
     // Доходы: у каждого источника — план месяца, получено и долг на сегодня
     body.append(
       el('h2', { class: 'section-title' }, 'Доходы'),
@@ -137,22 +126,33 @@ export async function renderBudget(root) {
       if (c.archived && !eff && !f && !e) continue;
       const catOps = incomeOps.filter((o) => o.categoryId === c.id);
       const recMonth = orig ? catOps.filter((o) => o.date.slice(0, 7) === month).reduce((s, o) => s + (o.currency === orig.currency ? o.amount : (convert(o.amount, o.currency, orig.currency, o.rate ?? rate) ?? 0)), 0) : null;
-      const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: thisMonth, rateNow: rate });
+      const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: shiftMonth(thisMonth, 1), rateNow: rate, today, terms: c });
       const sub = orig
         ? `план ${formatWhole(orig.amount, orig.currency)} · получено ${formatWhole(/** @type {number} */ (recMonth), orig.currency)}`
         : e ? `ожидается ${money(e.pending)}` : 'план не задан';
       const right = debt && debt.debt > 0
-        ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, 'должны'))
+        ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, debt.daysLate ? `просрочка ${debt.daysLate} дн.` : 'должны'))
         : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, money(f)), el('div', { class: 'muted small' }, 'получено'));
       incomeList.append(
         el('a', { class: 'row', href: `#/budget/${month}/${c.id}` },
           avatar(c.name, { income: true }),
-          el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), el('div', { class: 'muted small' }, sub)),
+          el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), c.employer ? el('div', { class: 'small' }, c.employer) : null, el('div', { class: 'muted small' }, sub)),
           right,
         ),
       );
     }
-    body.append(el('a', { class: 'link-btn', style: 'display:block;margin:0 4px 12px', href: '#/categories' }, '+ Добавить источник дохода (например, отдельно по каждой работе)'));
+    body.append(el('a', { class: 'btn btn-secondary btn-small', style: 'width:100%;margin-bottom:12px', href: '#/income/new' }, '+ Работодатель / источник дохода'));
+
+    // Расходы
+    body.append(el('h2', { class: 'section-title' }, 'Расходы'));
+    const expenseList = el('div', { class: 'list' });
+    for (const c of categories.filter((c) => c.kind === 'expense')) {
+      const line = byCat.get(c.id);
+      const f = fact.get(c.id) ?? 0;
+      if (c.archived && !line && !f) continue;
+      expenseList.append(expenseRow(c, line, f, month, today));
+    }
+    body.append(expenseList);
 
     // Ожидаемые поступления месяца (и задержанные с прошлых месяцев)
     const expectedRows = [...lateFromBefore, ...monthIncome];

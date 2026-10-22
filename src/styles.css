@@ -424,3 +424,5 @@ details[hidden] { display: none; }
 .segmented-mini { padding: 2px; flex: none; }
 .segmented-mini button { min-height: 28px; min-width: 36px; font-size: 13px; padding: 0 8px; }
 .display-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: -4px 0 10px; }
+.table th + th, .table td + td { padding-left: 8px; }
+.debt-card .table { font-size: 12.5px; }

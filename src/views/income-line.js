@@ -1,4 +1,6 @@
-import { el, avatar, toast, formatDate, formatMonth, formatMonthGen, currentMonth } from '../ui.js';
+import { el, avatar, toast, formatDate, formatMonth, formatMonthGen, currentMonth, shiftMonth } from '../ui.js';
+import { getCategory, setIncomeTerms } from '../repo/categories.js';
+import { segmented } from './form-parts.js';
 import { formatMoney as fmtMoney, amountToInput } from '../money.js';
 
 /** Без «,00» у целых сумм: 600 000 ₸ вместо 600 000,00 ₸. @param {number} a @param {'EUR' | 'KZT'} c */
@@ -30,6 +32,7 @@ export async function renderIncomeLine(root, category, month) {
   await refresh();
 
   async function refresh() {
+    category = /** @type {any} */ (await getCategory(category.id)) ?? category;
     const lines = await listCategoryLines(category.id);
     const allIncome = (await listOperations({ type: 'income' })).filter((o) => o.categoryId === category.id);
     const { from, to } = monthRange(month);
@@ -37,6 +40,25 @@ export async function renderIncomeLine(root, category, month) {
     const eff = effectiveLine(lines, month);
     const orig = eff ? lineOriginal(eff.line) : null;
     body.innerHTML = '';
+
+    // 0. Работодатель и срок выплаты
+    const terms = termsFields(category);
+    body.append(
+      el('details', { class: 'card list-card', open: !category.employer && !category.payDay },
+        el('summary', null, el('span', null, 'Работодатель и срок выплаты', el('div', { class: 'muted small' },
+          [category.employer || 'работодатель не указан', category.payDay ? termsText(category) : 'срок не задан'].join(' · ')))),
+        terms.el,
+        el('button', { class: 'btn', type: 'button', style: 'width:100%;margin:4px 0 12px', onclick: async () => {
+          try {
+            await setIncomeTerms(category.id, terms.read());
+            toast('Сохранено');
+            refresh();
+          } catch (err) {
+            toast(err instanceof Error ? err.message : 'Ошибка', { error: true });
+          }
+        } }, 'Сохранить'),
+      ),
+    );
 
     // 1. План на месяц
     const planAmount = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: orig ? amountToInput(orig.amount).replace(/,00$/, '') : '' });
@@ -80,25 +102,29 @@ export async function renderIncomeLine(root, category, month) {
     );
 
     // 3. Долг на сегодня
-    const debt = incomeDebt({ lines, ops: allIncome, upTo: thisMonth, rateNow });
+    const debt = incomeDebt({ lines, ops: allIncome, upTo: shiftMonth(thisMonth, 1), rateNow, today, terms: category });
     if (debt) {
       const owed = debt.debt;
       const table = el('table', { class: 'table' },
-        el('thead', null, el('tr', null, el('th', null, 'Месяц'), el('th', { class: 'num' }, 'План'), el('th', { class: 'num' }, 'Получено'))),
-        el('tbody', null, ...debt.months.map((m) => el('tr', null,
-          el('td', null, formatMonth(m.month)),
+        el('thead', null, el('tr', null, el('th', null, 'За месяц'), el('th', null, 'Срок'), el('th', { class: 'num' }, 'План'), el('th', { class: 'num' }, 'Получено'))),
+        el('tbody', null, ...debt.months.filter((m) => !m.pending || m === debt.next).map((m) => el('tr', { class: m.pending ? 'muted' : '' },
+          el('td', null, formatMonth(m.month).replace(/ \d{4}$/, '')),
+          el('td', { class: m.pending ? '' : m.due === debt.overdueSince ? 'warn' : '' }, m.pending ? `${formatDate(m.due)} (впереди)` : formatDate(m.due)),
           el('td', { class: 'num' }, formatMoney(m.plan, debt.currency)),
-          el('td', { class: `num${m.received >= m.plan ? ' income' : ''}` }, formatMoney(m.received, debt.currency)),
+          el('td', { class: `num${m.received >= m.plan && m.plan ? ' income' : ''}` }, formatMoney(m.received, debt.currency)),
         ))),
       );
-      body.append(
+      // Долг — самое важное, поэтому наверху
+      body.prepend(
         el('div', { class: `card debt-card ${owed > 0 ? 'debt-owed' : 'debt-ok'}` },
-          el('div', { class: 'card-title' }, 'Долг на сегодня'),
+          el('div', { class: 'card-title' }, category.employer ? `${category.employer} должен` : 'Долг на сегодня'),
           el('div', { class: 'hero-value', style: 'font-size:28px;margin:0' }, owed > 0 ? formatMoney(owed, debt.currency) : 'Нет'),
-          el('p', { class: 'muted small', style: 'margin:4px 0 10px' },
+          debt.daysLate ? el('p', { class: 'warn', style: 'margin:4px 0 0;font-weight:600' }, `Просрочка ${debt.daysLate} дн. — с ${formatDate(/** @type {string} */ (debt.overdueSince))}`) : null,
+          el('p', { class: 'muted small', style: 'margin:4px 0 6px' },
             owed > 0
-              ? `Должны заплатить: план ${formatMoney(debt.plan, debt.currency)} с ${formatMonthGen(debt.months[0]?.month ?? thisMonth)} минус получено ${formatMoney(debt.received, debt.currency)}.`
-              : owed < 0 ? `Получено больше плана на ${formatMoney(-owed, debt.currency)}.` : 'Всё по плану получено.'),
+              ? `Наступившие выплаты с ${formatMonthGen(debt.months[0]?.month ?? thisMonth)}: ${formatMoney(debt.plan, debt.currency)}, получено ${formatMoney(debt.received, debt.currency)}.`
+              : owed < 0 ? `Получено больше на ${formatMoney(-owed, debt.currency)} (аванс).` : 'Все наступившие выплаты получены.'),
+          debt.next ? el('p', { class: 'small', style: 'margin:0 0 10px' }, `Следующая выплата: ${formatDate(debt.next.due)} — ${formatMoney(debt.next.plan, debt.currency)} за ${formatMonth(debt.next.month).toLowerCase()}`) : null,
           table,
         ),
       );
@@ -140,4 +166,33 @@ export async function renderIncomeLine(root, category, month) {
       refresh();
     }
   }
+}
+
+/**
+ * «10-го числа следующего месяца» / «25-го числа того же месяца».
+ * @param {{ payDay?: number | null, payNextMonth?: boolean }} t
+ */
+export function termsText(t) {
+  if (!t.payDay) return 'срок не задан';
+  return `${t.payDay}-го числа ${t.payNextMonth ? 'следующего месяца' : 'того же месяца'}`;
+}
+
+/**
+ * Поля «Работодатель», «Какого числа платят», «За какой месяц».
+ * @param {{ employer?: string, payDay?: number | null, payNextMonth?: boolean }} [initial]
+ */
+export function termsFields(initial = {}) {
+  const employer = el('input', { class: 'input', value: initial.employer ?? '', placeholder: 'Например: ТОО «Альфа»', maxlength: 80 });
+  const payDay = el('input', { class: 'input input-sm', type: 'number', min: 1, max: 31, value: initial.payDay ?? '', placeholder: '—' });
+  let nextMonth = initial.payNextMonth ?? true;
+  const whenToggle = segmented([['next', 'В следующем месяце'], ['same', 'В том же месяце']], nextMonth ? 'next' : 'same', (v) => (nextMonth = v === 'next'));
+  const root = el('div', null,
+    el('label', { class: 'field' }, el('span', { class: 'field-label' }, 'Работодатель (кто платит)'), employer),
+    el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Какого числа платят'), el('div', { class: 'add-row', style: 'padding:0' }, payDay, el('span', { class: 'muted small', style: 'align-self:center' }, 'число месяца, пусто — без срока'))),
+    el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Зарплату за месяц платят'), whenToggle),
+  );
+  return {
+    el: root,
+    read: () => ({ employer: employer.value, payDay: payDay.value ? Number(payDay.value) : null, payNextMonth: nextMonth }),
+  };
 }

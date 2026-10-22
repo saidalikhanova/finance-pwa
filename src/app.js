@@ -23,6 +23,7 @@ import { renderProductReports } from './views/product-reports.js';
 import { renderForecast } from './views/forecast.js';
 import { renderBackup } from './views/backup.js';
 import { renderDebts } from './views/debts.js';
+import { renderIncomeSource } from './views/income-source.js';
 import { renderDebt } from './views/debt.js';
 import { renderSettings } from './views/settings.js';
 import { generateDue } from './repo/recurring.js';
@@ -49,6 +50,7 @@ register('/products', { title: 'Продукты', back: '/more', tab: '/more', 
 register('/products/:id', { title: 'Продукт', back: '/products', tab: '/more', render: renderProduct });
 register('/product-reports', { title: 'Отчёт по продуктам', back: '/reports', tab: '/reports', render: renderProductReports });
 register('/forecast', { title: 'Прогноз закупок', back: '/product-reports', tab: '/reports', render: renderForecast });
+register('/income/new', { title: 'Новый работодатель', back: '/budget', tab: '/budget', render: renderIncomeSource });
 register('/debts', { title: 'Мои долги', back: '/more', tab: '/more', render: renderDebts });
 register('/debts/new', { title: 'Новый долг', back: '/debts', tab: '/more', render: renderDebt });
 register('/debts/:id', { title: 'Долг', back: '/debts', tab: '/more', render: renderDebt });

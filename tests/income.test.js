@@ -77,3 +77,44 @@ test('доход (база): план в тенге с «каждый месяц
   assert.equal(saved.repeat, true);
   db.close();
 });
+
+test('доход: сроки выплаты — долг только по наступившим срокам', async () => {
+  const { payDueDate } = await import('../src/income.js');
+  assert.equal(payDueDate('2026-10', { payDay: 10, payNextMonth: true }), '2026-11-10');
+  assert.equal(payDueDate('2026-10', { payDay: 25, payNextMonth: false }), '2026-10-25');
+  assert.equal(payDueDate('2027-01', { payDay: 31, payNextMonth: true }), '2027-02-28', 'нет 31-го — последний день');
+  assert.equal(payDueDate('2026-10', {}), '2026-10-01', 'без срока — с начала месяца');
+
+  const lines = [line('2026-10', 600000)];
+  const terms = { payDay: 10, payNextMonth: true };
+  const before = incomeDebt({ lines, ops: [], upTo: '2026-12', rateNow: null, today: '2026-11-05', terms });
+  assert.equal(before?.debt, 0, 'зарплата за октябрь ещё не просрочена до 10 ноября');
+  assert.equal(before?.next?.due, '2026-11-10', 'следующая выплата');
+  const after = incomeDebt({ lines, ops: [], upTo: '2026-12', rateNow: null, today: '2026-11-15', terms });
+  assert.equal(after?.debt, 600000 * T);
+  assert.equal(after?.daysLate, 5, 'просрочка с 10 ноября');
+  assert.equal(after?.overdueSince, '2026-11-10');
+  const jan = incomeDebt({ lines, ops: [paid('2026-12-20', 500000)], upTo: '2027-02', rateNow: null, today: '2027-01-12', terms });
+  assert.equal(jan?.debt, (1_800_000 - 500_000) * T, 'окт+нояб+дек наступили; получено 500 тыс.');
+  assert.equal(jan?.overdueSince, '2026-11-10', 'октябрь покрыт лишь частично (500 из 600) — просрочка с 10 ноября');
+});
+
+test('доход (база): работодатель и срок выплаты; миграция 10', async () => {
+  const { setIncomeTerms, createCategory, getCategory } = await import('../src/repo/categories.js');
+  await deleteDatabase(TEST_DB);
+  let db = await openDatabase(TEST_DB, MIGRATIONS.filter((m) => m.version <= 9));
+  await put(db, 'categories', { id: 'old', name: 'Зарплата', kind: 'income', archived: false, order: 0, createdAt: '' });
+  db.close();
+  db = await openDatabase(TEST_DB);
+  const old = await getCategory('old', db);
+  assert.equal(old?.employer, '');
+  assert.equal(old?.payDay, null);
+  const c = await createCategory('Зарплата Альфа', 'income', db);
+  const t = await setIncomeTerms(c.id, { employer: ' ТОО Альфа ', payDay: 10, payNextMonth: true }, db);
+  assert.equal(t.employer, 'ТОО Альфа');
+  assert.equal(t.payDay, 10);
+  await assert.rejects(() => setIncomeTerms(c.id, { payDay: 40 }, db), 'день 40');
+  const e = await createCategory('Продукты2', 'expense', db);
+  await assert.rejects(() => setIncomeTerms(e.id, { payDay: 5 }, db), 'не для расходов');
+  db.close();
+});

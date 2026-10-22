@@ -115,6 +115,20 @@ export const MIGRATIONS = [
       db.createObjectStore('debts', { keyPath: 'id' });
     },
   },
+  {
+    version: 10,
+    upgrade(_db, tx) {
+      // У источников дохода: работодатель и срок выплаты. Старым категориям — пусто.
+      const req = tx.objectStore('categories').openCursor();
+      req.onsuccess = () => {
+        const cur = req.result;
+        if (!cur) return;
+        const v = cur.value;
+        if (v.employer === undefined) cur.update({ ...v, employer: '', payDay: null, payNextMonth: false });
+        cur.continue();
+      };
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

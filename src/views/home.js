@@ -85,7 +85,7 @@ export async function renderHome(root) {
     const incomeOps = await listOperations({ type: 'income' }, db);
     const owed = [];
     for (const c of categories.filter((c) => c.kind === 'income')) {
-      const d = incomeDebt({ lines: allLines.filter((l) => l.categoryId === c.id), ops: incomeOps.filter((o) => o.categoryId === c.id), upTo: month, rateNow });
+      const d = incomeDebt({ lines: allLines.filter((l) => l.categoryId === c.id), ops: incomeOps.filter((o) => o.categoryId === c.id), upTo: shiftMonth(month, 1), rateNow, today, terms: c });
       if (d && d.debt > 0) owed.push({ c, d });
     }
     if (owed.length) {
@@ -93,7 +93,7 @@ export async function renderHome(root) {
       card.append(el('div', { class: 'hero-label', style: 'padding-top:12px' }, 'Вам должны'));
       for (const { c, d } of owed) {
         card.append(el('a', { class: 'menu-row', href: `#/budget/${month}/${c.id}` },
-          el('span', null, c.name, el('div', { class: 'muted small' }, `${d.months.filter((m) => m.received < m.plan).length} мес. с недоплатой`)),
+          el('span', null, c.employer || c.name, el('div', { class: `small ${d.daysLate ? 'warn' : 'muted'}` }, d.daysLate ? `просрочка ${d.daysLate} дн.` : c.employer ? c.name : 'долг по плану')),
           el('strong', { class: 'warn' }, formatWhole(d.debt, d.currency)),
         ));
       }

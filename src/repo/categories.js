@@ -10,6 +10,9 @@ import { getDb, getAll, getOne, put, count, getSetting, setSetting } from '../db
  * @property {boolean} archived
  * @property {number} order
  * @property {string} createdAt
+ * @property {string} [employer] — для доходов: кто платит
+ * @property {number | null} [payDay] — для доходов: какого числа платят
+ * @property {boolean} [payNextMonth] — для доходов: за месяц платят в следующем месяце
  */
 
 /** @type {Record<Kind, string>} */
@@ -153,4 +156,22 @@ export async function setCategoryArchived(id, archived, db) {
 export async function countOperationsInCategory(id, db) {
   const d = db ?? (await getDb());
   return count(d, 'operations', 'categoryId', id);
+}
+
+/**
+ * Работодатель и срок выплаты источника дохода.
+ * @param {string} id
+ * @param {{ employer?: string, payDay?: number | null, payNextMonth?: boolean }} terms
+ * @param {IDBDatabase} [db]
+ */
+export async function setIncomeTerms(id, terms, db) {
+  const d = db ?? (await getDb());
+  const c = await getCategory(id, d);
+  if (!c) throw new Error('Категория не найдена');
+  if (c.kind !== 'income') throw new Error('Срок выплаты задаётся только для доходов');
+  const payDay = terms.payDay == null || terms.payDay === 0 ? null : Number(terms.payDay);
+  if (payDay != null && (!Number.isInteger(payDay) || payDay < 1 || payDay > 31)) throw new Error('День выплаты — число от 1 до 31');
+  const next = { ...c, employer: (terms.employer ?? c.employer ?? '').trim(), payDay, payNextMonth: payDay != null && Boolean(terms.payNextMonth) };
+  await put(d, 'categories', next);
+  return next;
 }

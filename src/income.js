@@ -63,25 +63,49 @@ function receivedIn(op, currency, rateNow) {
 }
 
 /**
- * @typedef {Object} DebtMonth
- * @property {string} month
- * @property {number} plan — в валюте долга
- * @property {number} received — в валюте долга
- * @property {boolean} inherited — план взят из предыдущего месяца («каждый месяц»)
+ * Условия выплаты источника дохода.
+ * @typedef {Object} PayTerms
+ * @property {number | null} [payDay] — какого числа платят (1–31); null — срок не задан
+ * @property {boolean} [payNextMonth] — за месяц платят в следующем месяце
  */
 
 /**
- * Долг по источнику дохода на месяц `upTo` включительно: сумма планов
- * минус всё полученное с первого месяца с планом. Валюта — последнего плана.
- * @param {{ lines: BudgetLine[], ops: Operation[], upTo: string, rateNow: number | null }} p
- *   lines — строки бюджета категории, ops — доходы категории
- * @returns {{ currency: Currency, months: DebtMonth[], plan: number, received: number, debt: number } | null}
+ * Срок выплаты за месяц. Без заданного числа — первое число месяца
+ * (план месяца считается положенным с начала месяца).
+ * @param {string} month — ГГГГ-ММ, за который платят
+ * @param {PayTerms | undefined} terms
+ */
+export function payDueDate(month, terms) {
+  if (!terms?.payDay) return `${month}-01`;
+  const m = terms.payNextMonth ? shiftMonth(month, 1) : month;
+  const [y, mm] = m.split('-').map(Number);
+  const last = new Date(y, mm, 0).getDate();
+  return `${m}-${String(Math.min(terms.payDay, last)).padStart(2, '0')}`;
+}
+
+/**
+ * @typedef {Object} DebtMonth
+ * @property {string} month
+ * @property {string} due — срок выплаты за этот месяц
+ * @property {number} plan — в валюте долга
+ * @property {number} received — в валюте долга (поступления в этом месяце)
+ * @property {boolean} inherited — план взят из предыдущего месяца («каждый месяц»)
+ * @property {boolean} pending — срок ещё не наступил, в долг не входит
+ */
+
+/**
+ * Долг по источнику дохода: сумма планов, срок выплаты которых наступил,
+ * минус всё полученное. Валюта — последнего плана.
+ * @param {{ lines: BudgetLine[], ops: Operation[], upTo: string, rateNow: number | null, today?: string, terms?: PayTerms }} p
+ *   lines — строки бюджета категории, ops — доходы категории; upTo — последний месяц плана;
+ *   today — сегодня (по умолчанию все месяцы до upTo считаются наступившими)
  */
 export function incomeDebt(p) {
   const withPlan = p.lines.filter((l) => l.planned != null && l.month <= p.upTo).sort((a, b) => (a.month < b.month ? -1 : 1));
   if (!withPlan.length) return null;
   const latest = effectiveLine(p.lines, p.upTo)?.line ?? withPlan[withPlan.length - 1];
   const currency = lineOriginal(latest)?.currency ?? 'EUR';
+  const today = p.today ?? '9999-12-31';
 
   /** @type {DebtMonth[]} */
   const months = [];
@@ -91,12 +115,31 @@ export function incomeDebt(p) {
     const eff = effectiveLine(p.lines, m);
     const orig = eff ? lineOriginal(eff.line) : null;
     const planM = orig ? convert(orig.amount, orig.currency, currency, p.rateNow) ?? 0 : 0;
-    const recM = p.ops.filter((o) => o.type === 'income' && o.date.slice(0, 7) === m).reduce((s, o) => s + receivedIn(o, currency, p.rateNow), 0);
-    if (planM || recM) months.push({ month: m, plan: planM, received: recM, inherited: Boolean(eff?.inherited) });
-    plan += planM;
+    const recM = p.ops.filter((o) => o.type === 'income' && o.date.slice(0, 7) === m && o.date <= today).reduce((s, o) => s + receivedIn(o, currency, p.rateNow), 0);
+    const due = payDueDate(m, p.terms);
+    const pending = due > today;
+    if (planM || recM) months.push({ month: m, due, plan: planM, received: recM, inherited: Boolean(eff?.inherited), pending });
+    if (!pending) plan += planM;
     received += recM;
   }
-  return { currency, months, plan, received, debt: plan - received };
+  // Поступления после последнего месяца плана (например, долг за прошлые месяцы отдали позже)
+  const lastMonth = p.upTo;
+  received += p.ops.filter((o) => o.type === 'income' && o.date.slice(0, 7) > lastMonth && o.date <= today).reduce((s, o) => s + receivedIn(o, currency, p.rateNow), 0);
+
+  // С какого срока тянется просрочка: самый ранний наступивший срок, не покрытый полученным
+  let covered = received;
+  let overdueSince = null;
+  for (const m of months) {
+    if (m.pending || !m.plan) continue;
+    if (covered >= m.plan) covered -= m.plan;
+    else {
+      overdueSince = m.due;
+      break;
+    }
+  }
+  const daysLate = overdueSince && overdueSince < today ? Math.round((Date.parse(today) - Date.parse(overdueSince)) / 86_400_000) : 0;
+  const next = months.find((m) => m.pending && m.plan) ?? null;
+  return { currency, months, plan, received, debt: plan - received, overdueSince, daysLate, next };
 }
 
 /**
