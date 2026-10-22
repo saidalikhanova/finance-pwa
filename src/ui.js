@@ -78,12 +78,52 @@ export function toast(text, opts = {}) {
 }
 
 /**
+ * Окно поверх экрана — своё, а не системное: в установленном на iPhone
+ * приложении системные confirm/prompt могут не показываться.
+ * @param {string} text
+ * @param {{ ok?: string, input?: string | null }} opts — input: начальное значение поля ввода
+ * @returns {Promise<string | null>} — значение поля (или '' без поля) либо null при отмене
+ */
+function modal(text, opts) {
+  return new Promise((resolve) => {
+    const input = opts.input != null ? /** @type {HTMLInputElement} */ (el('input', { class: 'input', value: opts.input })) : null;
+    const close = (/** @type {string | null} */ v) => {
+      overlay.remove();
+      resolve(v);
+    };
+    const okBtn = el('button', { class: 'btn', type: 'submit' }, opts.ok ?? 'Да');
+    const box = el('form', { class: 'modal', role: 'dialog', 'aria-modal': 'true', onsubmit: (/** @type {Event} */ e) => { e.preventDefault(); close(input ? input.value : ''); } },
+      el('p', { class: 'modal-text' }, text),
+      input,
+      el('div', { class: 'modal-actions' }, el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => close(null) }, 'Отмена'), okBtn),
+    );
+    const overlay = el('div', { class: 'modal-overlay', onclick: (/** @type {Event} */ e) => { if (e.target === overlay) close(null); } }, box);
+    document.body.appendChild(overlay);
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+/**
  * Подтверждение действия.
  * @param {string} text
+ * @param {string} [ok] — надпись на кнопке подтверждения
  * @returns {Promise<boolean>}
  */
-export function confirmDialog(text) {
-  return Promise.resolve(window.confirm(text));
+export async function confirmDialog(text, ok) {
+  return (await modal(text, { ok })) != null;
+}
+
+/**
+ * Ввод значения (замена window.prompt).
+ * @param {string} text
+ * @param {string} value
+ * @returns {Promise<string | null>}
+ */
+export function promptDialog(text, value) {
+  return modal(text, { ok: 'Сохранить', input: value });
 }
 
 /**

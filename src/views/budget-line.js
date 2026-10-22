@@ -117,11 +117,15 @@ export async function renderBudgetLine(root, params) {
   plannedInput.focus();
 
   async function onRemove() {
-    const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Категория останется в других месяцах, записанные операции не удаляются.`);
+    const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Категория останется в других месяцах, записанные операции не удаляются.`, 'Убрать');
     if (!ok) return;
-    await removeFromMonth(month, categoryId);
-    toast('Убрано из бюджета месяца');
-    navigate('/budget');
+    try {
+      await removeFromMonth(month, categoryId);
+      toast('Убрано из бюджета месяца');
+      navigate('/budget');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Не удалось убрать', { error: true });
+    }
   }
 
   async function onRestore() {

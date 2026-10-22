@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, formatDate } from '../ui.js';
+import { el, toast, confirmDialog, promptDialog, formatDate } from '../ui.js';
 import { parseRate, formatRate } from '../money.js';
 import { listRates, saveRate, deleteRate } from '../repo/rates.js';
 import { todayISO } from '../repo/operations.js';
@@ -54,7 +54,7 @@ export async function renderRates(root) {
             type: 'button',
             'aria-label': `Изменить курс за ${r.date}`,
             onclick: async () => {
-              const next = window.prompt(`Курс на ${formatDate(r.date)}, ₸ за 1 €`, formatRate(r.rate));
+              const next = await promptDialog(`Курс на ${formatDate(r.date)}, ₸ за 1 €`, formatRate(r.rate));
               if (next == null) return;
               const rate = parseRate(next);
               if (rate == null) {

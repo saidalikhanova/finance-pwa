@@ -135,11 +135,15 @@ export async function renderIncomeLine(root, category, month) {
     }
 
     async function removePlan() {
-      const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Другие месяцы, категория и полученные суммы не изменятся.`);
+      const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Другие месяцы, категория и полученные суммы не изменятся.`, 'Убрать');
       if (!ok) return;
-      await removeFromMonth(month, category.id);
-      toast('Убрано из бюджета месяца');
-      refresh();
+      try {
+        await removeFromMonth(month, category.id);
+        toast('Убрано из бюджета месяца');
+        refresh();
+      } catch (err) {
+        toast(err instanceof Error ? err.message : 'Не удалось убрать', { error: true });
+      }
     }
 
     async function savePlan() {

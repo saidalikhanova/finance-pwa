@@ -1,4 +1,4 @@
-import { el, avatar, toast } from '../ui.js';
+import { el, avatar, toast, promptDialog } from '../ui.js';
 import {
   listCategories,
   createCategory,
@@ -66,7 +66,7 @@ export async function renderCategories(root) {
       type: 'button',
       'aria-label': `Переименовать ${c.name}`,
       onclick: async () => {
-        const next = window.prompt('Новое название категории', c.name);
+        const next = await promptDialog('Новое название категории', c.name);
         if (next == null || next.trim() === c.name) return;
         try {
           await renameCategory(c.id, next);
