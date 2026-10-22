@@ -50,7 +50,7 @@ register('/products', { title: 'Продукты', back: '/more', tab: '/more', 
 register('/products/:id', { title: 'Продукт', back: '/products', tab: '/more', render: renderProduct });
 register('/product-reports', { title: 'Отчёт по продуктам', back: '/reports', tab: '/reports', render: renderProductReports });
 register('/forecast', { title: 'Прогноз закупок', back: '/product-reports', tab: '/reports', render: renderForecast });
-register('/income/new', { title: 'Новый работодатель', back: '/budget', tab: '/budget', render: renderIncomeSource });
+register('/income/new', { title: 'Работодатель и срок', back: '/budget', tab: '/budget', render: renderIncomeSource });
 register('/debts', { title: 'Мои долги', back: '/more', tab: '/more', render: renderDebts });
 register('/debts/new', { title: 'Новый долг', back: '/debts', tab: '/more', render: renderDebt });
 register('/debts/:id', { title: 'Долг', back: '/debts', tab: '/more', render: renderDebt });
@@ -76,8 +76,21 @@ seedDefaultCategories()
   .finally(() => start(root, titleEl, backEl));
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').then(() => {
-    // Когда сервис-воркер взял страницу под контроль — обновляем статус на главной.
+  // Новая версия приложения применяется сразу: когда новый сервис-воркер берёт
+  // управление, страница один раз перезагружается (только если до этого уже была версия).
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register('./sw.js').then((reg) => {
+    // Проверяем обновление при каждом открытии и возвращении в приложение
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
     navigator.serviceWorker.ready.then(() => {
       const el = document.getElementById('sw-status');
       if (el) el.textContent = 'готово';

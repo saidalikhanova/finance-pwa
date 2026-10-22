@@ -136,12 +136,12 @@ export async function renderBudget(root) {
       incomeList.append(
         el('a', { class: 'row', href: `#/budget/${month}/${c.id}` },
           avatar(c.name, { income: true }),
-          el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), c.employer ? el('div', { class: 'small' }, c.employer) : null, el('div', { class: 'muted small' }, sub)),
+          el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), c.employer ? el('div', { class: 'small' }, c.employer) : el('div', { class: 'small muted' }, 'работодатель не указан'), el('div', { class: 'muted small' }, sub)),
           right,
         ),
       );
     }
-    body.append(el('a', { class: 'btn btn-secondary btn-small', style: 'width:100%;margin-bottom:12px', href: '#/income/new' }, '+ Работодатель / источник дохода'));
+    body.append(el('a', { class: 'btn btn-secondary btn-small', style: 'width:100%;margin-bottom:12px', href: '#/income/new' }, '+ Указать работодателя и срок выплаты'));
 
     // Расходы
     body.append(el('h2', { class: 'section-title' }, 'Расходы'));

@@ -35,6 +35,7 @@ export async function renderSettings(root) {
     el('h2', { class: 'section-title' }, 'Состояние приложения'),
     el('div', { class: 'card list-card' },
       el('ul', { class: 'status-list' },
+        el('li', null, el('span', null, 'Версия приложения'), el('span', { id: 'app-version' }, '…')),
         el('li', null, el('span', null, 'Локальная база'), el('span', null, `схема v${SCHEMA_VERSION}`)),
         el('li', null, el('span', null, 'Первый запуск'), el('span', null, installedAt ? new Date(installedAt).toLocaleDateString('ru-RU') : '—')),
         el('li', null, el('span', null, 'Работа без интернета'), el('span', { id: 'sw-status' }, navigator.serviceWorker?.controller ? 'готово' : 'подготовка…')),
@@ -50,5 +51,21 @@ export async function renderSettings(root) {
     await setSetting('forecastMonths', Math.max(1, Math.min(12, Number(monthsInput.value) || 3)));
     await setSetting('overbuyPercent', Math.max(1, Number(overbuyInput.value) || 30));
     toast('Настройки сохранены');
+  }
+
+  root.append(el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:4px', onclick: checkUpdate }, 'Проверить обновление'));
+  caches.keys().then((keys) => {
+    const v = keys.find((k) => k.startsWith('finance-'))?.replace('finance-', '') ?? '—';
+    const node = document.getElementById('app-version');
+    if (node) node.textContent = v;
+  }).catch(() => {});
+
+  async function checkUpdate() {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (!reg) return toast('Обновления недоступны в этом режиме', { error: true });
+    toast('Проверяю…');
+    await reg.update().catch(() => {});
+    if (reg.installing || reg.waiting) toast('Загружаю новую версию — приложение перезапустится');
+    else toast('У вас последняя версия');
   }
 }

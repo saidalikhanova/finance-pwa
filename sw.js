@@ -4,7 +4,7 @@
 // При каждом изменении файлов приложения нужно увеличить CACHE_VERSION —
 // тогда старый кэш будет удалён и файлы загрузятся заново.
 
-const CACHE_VERSION = 'v26';
+const CACHE_VERSION = 'v27';
 const CACHE_NAME = `finance-${CACHE_VERSION}`;
 
 const APP_FILES = [
@@ -84,9 +84,11 @@ const APP_FILES = [
   './icons/apple-touch-icon.png',
 ];
 
+// Файлы берутся мимо HTTP-кэша браузера (cache: 'reload'), иначе новая версия
+// могла бы сохранить старые файлы, которые GitHub Pages отдаёт с кэшем до 10 минут.
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES)).then(() => self.skipWaiting()),
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()),
   );
 });
 
