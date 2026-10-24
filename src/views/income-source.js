@@ -21,11 +21,11 @@ export async function renderIncomeSource(root, params = {}) {
   const today = todayISO();
   const sources = await listCategories({ kind: 'income' });
   // По умолчанию — переданный источник, иначе первый без работодателя, иначе первый
-  const preferred = params.category ?? (sources.find((c) => !c.employer) ?? sources[0])?.id ?? NEW;
+  const preferred = params.new ? NEW : params.category ?? (sources.find((c) => !c.employer) ?? sources[0])?.id ?? NEW;
 
   const sourceSelect = el('select', { class: 'select' },
     ...sources.map((c) => el('option', { value: c.id }, c.employer ? `${c.name} — ${c.employer}` : c.name)),
-    el('option', { value: NEW }, '+ Новый источник (ещё одна работа)'),
+    el('option', { value: NEW }, '+ Новый источник (работа, проект)'),
   );
   sourceSelect.value = preferred;
 

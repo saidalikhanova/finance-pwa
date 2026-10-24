@@ -5,7 +5,7 @@ import { listCategories } from '../repo/categories.js';
 import { createPlanned, updatePlanned, getPlanned, deletePlanned, moveToNextMonth } from '../repo/planned.js';
 import { todayISO } from '../repo/operations.js';
 import { expectedStatus, whenLabel } from '../expected.js';
-import { field, segmented, categorySelectFor } from './form-parts.js';
+import { field, segmented, categorySelectFor, categoryLabel } from './form-parts.js';
 
 /**
  * Разовый запланированный платёж или ожидаемое поступление.
@@ -65,6 +65,7 @@ export async function renderPlannedForm(root, params) {
   const typeToggle = segmented([['expense', 'Расход'], ['income', 'Доход']], typeInput.value, (v) => {
     typeInput.value = v;
     categorySelect.fill(v);
+    categoryLabelEl.textContent = categoryLabel(v);
     renderLabels();
   });
   const amountInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,00', value: existing ? amountToInput(existing.amount) : '' });
@@ -72,6 +73,7 @@ export async function renderPlannedForm(root, params) {
   const currencyToggle = segmented([['EUR', '€'], ['KZT', '₸']], currencyInput.value, (v) => (currencyInput.value = v));
   const categorySelect = categorySelectFor(categories, existing?.categoryId ?? params.category);
   categorySelect.fill(typeInput.value);
+  const categoryLabelEl = el('span', { class: 'field-label' }, categoryLabel(typeInput.value));
 
   // Когда: точная дата или «в течение месяца»
   let dateKind = existing?.dateKind ?? (params.month || initialType === 'income' ? 'month' : 'day');
@@ -111,7 +113,7 @@ export async function renderPlannedForm(root, params) {
     el('div', { class: 'field' }, whenLabelEl, whenToggle),
     dateField,
     monthField,
-    field('Категория', categorySelect.el),
+    el('label', { class: 'field' }, categoryLabelEl, categorySelect.el),
     note,
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
   );

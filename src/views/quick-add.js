@@ -31,11 +31,11 @@ export async function renderQuickAdd(root, params = {}) {
   dateInput.addEventListener('change', () => money.refreshSuggestion());
 
   const chips = el('div', { class: 'chips' });
-  const hint = el('p', { class: 'muted small', style: 'text-align:center' }, 'Выберите категорию');
+  const hint = el('p', { class: 'muted small', style: 'text-align:center' });
   function fillChips() {
     chips.innerHTML = '';
     selected = null;
-    hint.textContent = 'Выберите категорию';
+    hint.textContent = type === 'income' ? 'Выберите источник дохода' : 'Выберите категорию';
     for (const c of all.filter((c) => c.kind === type)) {
       const chip = el('button', { type: 'button', class: 'chip', onclick: () => {
         selected = c;
@@ -92,7 +92,7 @@ export async function renderQuickAdd(root, params = {}) {
       return;
     }
     if (!selected) {
-      toast('Выберите категорию', { error: true });
+      toast(type === 'income' ? 'Выберите источник дохода' : 'Выберите категорию', { error: true });
       return;
     }
     const date = dateInput.value || todayISO();

@@ -11,6 +11,14 @@ export function field(label, ...controls) {
 }
 
 /**
+ * Подпись поля «категория»: у доходов — «Источник» (источник дохода).
+ * @param {string} kind
+ */
+export function categoryLabel(kind) {
+  return kind === 'income' ? 'Источник' : 'Категория';
+}
+
+/**
  * Переключатель из нескольких кнопок.
  * @param {[string, string][]} options — [значение, подпись]
  * @param {string} value
@@ -42,7 +50,7 @@ export function categorySelectFor(categories, current) {
     /** @param {string} kind */
     fill(kind) {
       select.innerHTML = '';
-      select.append(el('option', { value: '', disabled: true, selected: true }, 'Выберите категорию'));
+      select.append(el('option', { value: '', disabled: true, selected: true }, kind === 'income' ? 'Выберите источник' : 'Выберите категорию'));
       for (const c of categories) {
         if (c.kind !== kind) continue;
         if (c.archived && c.id !== current) continue;

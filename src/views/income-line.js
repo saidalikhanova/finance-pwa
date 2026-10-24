@@ -1,5 +1,7 @@
 import { el, avatar, toast, formatDate, formatMonth, formatMonthGen, currentMonth, shiftMonth, confirmDialog } from '../ui.js';
-import { getCategory, setIncomeTerms } from '../repo/categories.js';
+import { getCategory, setIncomeTerms, renameCategory, setCategoryArchived } from '../repo/categories.js';
+import { listPlanned } from '../repo/planned.js';
+import { navigate } from '../router.js';
 import { segmented } from './form-parts.js';
 import { formatMoney as fmtMoney, amountToInput } from '../money.js';
 
@@ -10,7 +12,7 @@ import { createOperation, listOperations, monthRange, todayISO } from '../repo/o
 import { suggestRate, saveRate } from '../repo/rates.js';
 import { effectiveLine, lineOriginal, incomeDebt } from '../income.js';
 import { currencyControls } from './currency-input.js';
-import { budgetState } from './budget.js';
+import { budgetState, expectedRow } from './budget.js';
 
 /**
  * Источник дохода на месяц: план, полученное (факт) и долг на сегодня — на одном экране.
@@ -44,13 +46,20 @@ export async function renderIncomeLine(root, category, month) {
 
     // 0. Работодатель и срок выплаты
     const terms = termsFields(category);
+    const nameInput = /** @type {HTMLInputElement} */ (el('input', { class: 'input', value: category.name, maxlength: 60 }));
     body.append(
       el('details', { class: 'card list-card', open: !category.employer && !category.payDay },
-        el('summary', null, el('span', null, 'Работодатель и срок выплаты', el('div', { class: 'muted small' },
+        el('summary', null, el('span', null, 'Название, работодатель и срок выплаты', el('div', { class: 'muted small' },
           [category.employer || 'работодатель не указан', category.payDay ? termsText(category) : 'срок не задан'].join(' · ')))),
+        el('label', { class: 'field', style: 'margin-top:8px' }, el('span', { class: 'field-label' }, 'Название источника'), nameInput),
         terms.el,
         el('button', { class: 'btn', type: 'button', style: 'width:100%;margin:4px 0 12px', onclick: async () => {
           try {
+            if (nameInput.value.trim() !== category.name) {
+              await renameCategory(category.id, nameInput.value);
+              const title = document.getElementById('page-title');
+              if (title) title.textContent = nameInput.value.trim();
+            }
             await setIncomeTerms(category.id, terms.read());
             toast('Сохранено');
             refresh();
@@ -105,6 +114,18 @@ export async function renderIncomeLine(root, category, month) {
       ),
     );
 
+    // Разовые поступления этого источника в месяце (тренинг, проект — с примерной датой)
+    const oneOff = (await listPlanned({ from, to, includeDone: true, type: 'income' })).filter((p) => p.categoryId === category.id);
+    const oneOffList = el('div', { class: 'list', style: 'margin:8px 0' });
+    for (const p of oneOff) oneOffList.append(expectedRow(p, today, rateNow));
+    body.append(
+      el('div', { class: 'card' },
+        el('div', { class: 'card-title' }, `Разовые поступления в ${formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ')}`),
+        oneOff.length ? oneOffList : el('p', { class: 'muted small', style: 'margin:0 0 8px' }, 'Например, оплата за тренинг или проект, которая придёт один раз. Входит в план доходов месяца.'),
+        el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/planned/new?type=income&category=${category.id}&month=${month}&from=budget` }, '+ Разовое поступление'),
+      ),
+    );
+
     // 3. Долг на сегодня
     const debt = incomeDebt({ lines, ops: allIncome, upTo: shiftMonth(thisMonth, 1), rateNow, today, terms: category });
     if (debt) {
@@ -133,6 +154,17 @@ export async function renderIncomeLine(root, category, month) {
         ),
       );
     }
+
+    // Архив: источник больше не нужен (история и операции сохраняются)
+    body.append(el('button', { class: 'btn btn-danger', type: 'button', style: 'margin-top:8px', onclick: async () => {
+      const ok = await confirmDialog(category.archived
+        ? `Вернуть «${category.name}» из архива?`
+        : `Перенести «${category.name}» в архив? Источник пропадёт из бюджета и из выбора при записи дохода. Полученные суммы и история сохранятся; вернуть можно здесь же.`, category.archived ? 'Вернуть' : 'В архив');
+      if (!ok) return;
+      await setCategoryArchived(category.id, !category.archived);
+      toast(category.archived ? 'Источник возвращён' : 'Источник перенесён в архив');
+      navigate('/budget');
+    } }, category.archived ? 'Вернуть источник из архива' : 'Перенести источник в архив'));
 
     async function removePlan() {
       const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Другие месяцы, категория и полученные суммы не изменятся.`, 'Убрать');

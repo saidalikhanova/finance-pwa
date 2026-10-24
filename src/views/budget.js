@@ -90,7 +90,9 @@ export async function renderBudget(root) {
       const line = byCat.get(c.id);
       const f = fact.get(c.id) ?? 0;
       if (c.kind === 'income') {
-        planIncome += (effectivePlanEur(allLines.filter((l) => l.categoryId === c.id), month, rate) ?? 0) + (exp.byCategory.get(c.id)?.planned ?? 0);
+        const catLines = allLines.filter((l) => l.categoryId === c.id);
+        const inheritedOnly = c.archived && effectiveLine(catLines, month)?.inherited;
+        planIncome += (inheritedOnly ? 0 : effectivePlanEur(catLines, month, rate) ?? 0) + (exp.byCategory.get(c.id)?.planned ?? 0);
         factIncome += f;
       } else {
         planExpense += line?.planned ?? 0;
@@ -141,7 +143,8 @@ export async function renderBudget(root) {
       const orig = eff ? lineOriginal(eff.line) : null;
       const f = fact.get(c.id) ?? 0;
       const e = exp.byCategory.get(c.id);
-      if (c.archived && !eff && !f && !e) continue;
+      // Источник в архиве: план «каждый месяц» дальше не действует
+      if (c.archived && !(eff && !eff.inherited) && !f && !e && !expectedBy.get(c.id)?.length) continue;
       const catOps = incomeOps.filter((o) => o.categoryId === c.id);
       const recMonth = orig ? catOps.filter((o) => o.date.slice(0, 7) === month).reduce((s, o) => s + (o.currency === orig.currency ? o.amount : (convert(o.amount, o.currency, orig.currency, o.rate ?? rate) ?? 0)), 0) : null;
       const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: shiftMonth(thisMonth, 1), rateNow: rate, today, terms: c });
@@ -169,7 +172,7 @@ export async function renderBudget(root) {
     }
     // Поступления без показанного источника (например, источник в архиве)
     appendExpected([...expectedBy.values()].flat());
-    body.append(el('a', { class: 'btn btn-secondary btn-small', style: 'width:100%;margin-bottom:12px', href: '#/income/new' }, '+ Указать работодателя и срок выплаты'));
+    body.append(el('a', { class: 'btn btn-secondary btn-small', style: 'width:100%;margin-bottom:12px', href: '#/income/new?new=1' }, '+ Новый источник дохода'));
 
     // Расходы
     body.append(el('h2', { class: 'section-title' }, 'Расходы'));

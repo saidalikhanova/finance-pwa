@@ -17,7 +17,8 @@ export async function renderCategories(root) {
     const all = await listCategories({ includeArchived: true });
     container.innerHTML = '';
 
-    for (const kind of /** @type {const} */ (['expense', 'income'])) {
+    // Источники дохода настраиваются в «Бюджете» (название, работодатель, срок, план, архив)
+    for (const kind of /** @type {const} */ (['expense'])) {
       const active = all.filter((c) => c.kind === kind && !c.archived);
       const archived = all.filter((c) => c.kind === kind && c.archived);
 
@@ -53,6 +54,14 @@ export async function renderCategories(root) {
         container.append(details);
       }
     }
+    container.append(
+      el('h2', { class: 'section-title' }, 'Доходы'),
+      el('a', { class: 'row card', href: '#/budget', style: 'color:inherit;text-decoration:none' },
+        avatar('Доходы', { income: true, small: true }),
+        el('div', { class: 'row-main' }, el('div', null, 'Источники дохода'), el('div', { class: 'muted small' }, 'Настраиваются в «Бюджете» → «Доходы»: название, работодатель, срок выплаты, план, архив.')),
+        el('span', { class: 'muted' }, '›'),
+      ),
+    );
   }
 
   /** @param {import('../repo/categories.js').Category} c */

@@ -18,6 +18,7 @@ import {
   todayISO,
 } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
+import { categoryLabel } from './form-parts.js';
 
 /**
  * Форма создания и редактирования операции.
@@ -155,13 +156,15 @@ export async function renderOperationForm(root, params) {
   }
   updateRateField();
 
-  // Категория
+  // Категория (у доходов — источник)
+  const categoryLabelEl = el('span', { class: 'field-label' });
   const categorySelect = el('select', { class: 'select', name: 'categoryId', required: true });
   function fillCategories() {
     const kind = typeInput.value;
     const current = existing?.categoryId ?? preset?.categoryId;
     categorySelect.innerHTML = '';
-    categorySelect.append(el('option', { value: '', disabled: true, selected: true }, 'Выберите категорию'));
+    categorySelect.append(el('option', { value: '', disabled: true, selected: true }, kind === 'income' ? 'Выберите источник' : 'Выберите категорию'));
+    categoryLabelEl.textContent = categoryLabel(kind);
     for (const c of allCategories) {
       if (c.kind !== kind) continue;
       if (c.archived && c.id !== current) continue;
@@ -238,7 +241,7 @@ export async function renderOperationForm(root, params) {
     field('Сумма', el('div', { class: 'amount-row' }, amountInput, currencyToggle), eurPreview),
     field('Дата', dateInput),
     rateField,
-    field('Категория', categorySelect),
+    el('label', { class: 'field' }, categoryLabelEl, categorySelect),
     itemsDetails,
     field('Магазин', storeInput),
     field('Комментарий', commentInput),
@@ -271,7 +274,7 @@ export async function renderOperationForm(root, params) {
       return;
     }
     if (!items.length && !categorySelect.value) {
-      toast('Выберите категорию', { error: true });
+      toast(typeInput.value === 'income' ? 'Выберите источник дохода' : 'Выберите категорию', { error: true });
       categorySelect.focus();
       return;
     }
