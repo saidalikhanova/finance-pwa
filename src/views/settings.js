@@ -54,18 +54,56 @@ export async function renderSettings(root) {
   }
 
   root.append(el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:4px', onclick: checkUpdate }, 'Проверить обновление'));
-  caches.keys().then((keys) => {
-    const v = keys.find((k) => k.startsWith('finance-'))?.replace('finance-', '') ?? '—';
+  runningVersion().then((v) => {
     const node = document.getElementById('app-version');
-    if (node) node.textContent = v;
-  }).catch(() => {});
+    if (node) node.textContent = v ?? '—';
+  });
 
   async function checkUpdate() {
     const reg = await navigator.serviceWorker?.getRegistration();
     if (!reg) return toast('Обновления недоступны в этом режиме', { error: true });
     toast('Проверяю…');
+    const latest = await siteVersion();
+    if (!latest) return toast('Нет связи с сайтом — проверьте интернет', { error: true });
+    const current = await runningVersion();
+    if (current === latest) return toast(`У вас последняя версия: ${latest}`);
+    toast(`Загружаю версию ${latest} — приложение перезапустится`, { ms: 8000 });
     await reg.update().catch(() => {});
-    if (reg.installing || reg.waiting) toast('Загружаю новую версию — приложение перезапустится');
-    else toast('У вас последняя версия');
+    // Если за 15 секунд новая версия не применилась сама — обновляем принудительно.
+    // Данные хранятся отдельно (IndexedDB) и не затрагиваются.
+    setTimeout(async () => {
+      if ((await runningVersion()) === latest) return;
+      for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+      for (const k of await caches.keys()) await caches.delete(k);
+      location.reload();
+    }, 15000);
+  }
+}
+
+/** Версия, которая сейчас работает (спрашиваем у сервис-воркера). */
+async function runningVersion() {
+  const sw = navigator.serviceWorker?.controller;
+  if (sw) {
+    const v = await new Promise((resolve) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = (e) => resolve(e.data);
+      sw.postMessage('version', [ch.port2]);
+      setTimeout(() => resolve(null), 1000);
+    });
+    if (v) return /** @type {string} */ (v);
+  }
+  // Старый сервис-воркер не отвечает — берём самую новую версию из кэша
+  const keys = (await caches.keys().catch(() => [])).filter((k) => k.startsWith('finance-v'));
+  const nums = keys.map((k) => Number(k.slice('finance-v'.length))).filter(Number.isFinite);
+  return nums.length ? `v${Math.max(...nums)}` : null;
+}
+
+/** Последняя версия на сайте. */
+async function siteVersion() {
+  try {
+    const text = await (await fetch(`./sw.js?check=${Date.now()}`, { cache: 'no-store' })).text();
+    return text.match(/CACHE_VERSION = '([^']+)'/)?.[1] ?? null;
+  } catch {
+    return null;
   }
 }

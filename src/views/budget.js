@@ -117,6 +117,17 @@ export async function renderBudget(root) {
     );
     const incomeList = el('div', { class: 'list' });
     body.append(incomeList);
+    // Ожидаемые разовые поступления (и задержанные с прошлых месяцев) —
+    // под своим источником дохода, а не отдельным списком
+    /** @type {Map<string, typeof monthIncome>} */
+    const expectedBy = new Map();
+    for (const p of [...lateFromBefore, ...monthIncome]) {
+      expectedBy.set(p.categoryId, [...(expectedBy.get(p.categoryId) ?? []), p]);
+    }
+    /** @param {typeof monthIncome} items */
+    const appendExpected = (items) => {
+      for (const p of items) incomeList.append(expectedRow(p, today, rate, true));
+    };
     // Категории, убранные из этого месяца (без записанных сумм)
     /** @type {typeof categories} */
     const hidden = [];
@@ -136,7 +147,7 @@ export async function renderBudget(root) {
       const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: shiftMonth(thisMonth, 1), rateNow: rate, today, terms: c });
       const sub = orig
         ? `план ${formatWhole(orig.amount, orig.currency)} · получено ${formatWhole(/** @type {number} */ (recMonth), orig.currency)}`
-        : e ? `ожидается ${money(e.pending)}` : 'план не задан';
+        : e ? `ожидается ${money(e.pending)}` : expectedBy.get(c.id)?.length ? 'ожидаемые поступления — ниже' : 'план не задан';
       const right = debt && debt.debt > 0
         ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, debt.daysLate ? `просрочка ${debt.daysLate} дн.` : 'должны'))
         : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, money(f)), el('div', { class: 'muted small' }, 'получено'));
@@ -147,7 +158,11 @@ export async function renderBudget(root) {
           right,
         ),
       );
+      appendExpected(expectedBy.get(c.id) ?? []);
+      expectedBy.delete(c.id);
     }
+    // Поступления без показанного источника (например, источник в архиве)
+    appendExpected([...expectedBy.values()].flat());
     body.append(el('a', { class: 'btn btn-secondary btn-small', style: 'width:100%;margin-bottom:12px', href: '#/income/new' }, '+ Указать работодателя и срок выплаты'));
 
     // Расходы
@@ -181,14 +196,6 @@ export async function renderBudget(root) {
       body.append(details);
     }
 
-    // Ожидаемые поступления месяца (и задержанные с прошлых месяцев)
-    const expectedRows = [...lateFromBefore, ...monthIncome];
-    if (expectedRows.length) {
-      body.append(el('h2', { class: 'section-title' }, 'Ожидаемые поступления'));
-      const list = el('div', { class: 'list' });
-      for (const p of expectedRows) list.append(expectedRow(p, today, rate));
-      body.append(list);
-    }
 
     // Желаемые покупки рядом с бюджетом (п. 4.14 ТЗ)
     const wishes = (await listWishes()).filter((w) => w.status === 'want');
@@ -257,8 +264,9 @@ export async function renderBudget(root) {
  * @param {import('../repo/planned.js').PlannedPayment} p
  * @param {string} today
  * @param {number | null} rate
+ * @param {boolean} [nested] — под строкой источника дохода в бюджете
  */
-export function expectedRow(p, today, rate) {
+export function expectedRow(p, today, rate, nested = false) {
   const st = expectedStatus(p, today);
   const label =
     st.status === 'received'
@@ -270,7 +278,7 @@ export function expectedRow(p, today, rate) {
   const shown = st.status === 'received' && p.receivedAmount != null ? p.receivedAmount : p.amount;
   return el(
     'div',
-    { class: `row expected-row expected-${st.status}` },
+    { class: `row expected-row expected-${st.status}${nested ? ' expected-nested' : ''}` },
     avatar(p.name, { income: true }),
     el('a', { class: 'row-main', href: `#/planned/${p.id}?from=budget`, style: 'color:inherit;text-decoration:none' },
       el('div', null, p.name),

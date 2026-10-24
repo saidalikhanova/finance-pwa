@@ -445,3 +445,7 @@ details[hidden] { display: none; }
 .modal .input { margin-bottom: 14px; }
 .modal-actions { display: flex; gap: 10px; }
 .modal-actions .btn { flex: 1; margin: 0; }
+
+/* Ожидаемое поступление под своим источником дохода */
+.expected-nested { padding-left: 44px; }
+.expected-nested .avatar { width: 32px; height: 32px; }

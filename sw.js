@@ -4,7 +4,7 @@
 // При каждом изменении файлов приложения нужно увеличить CACHE_VERSION —
 // тогда старый кэш будет удалён и файлы загрузятся заново.
 
-const CACHE_VERSION = 'v31';
+const CACHE_VERSION = 'v33';
 const CACHE_NAME = `finance-${CACHE_VERSION}`;
 
 const APP_FILES = [
@@ -101,6 +101,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Страница спрашивает, какая версия сейчас работает
+self.addEventListener('message', (event) => {
+  if (event.data === 'version') event.ports[0]?.postMessage(CACHE_VERSION);
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -109,6 +114,8 @@ self.addEventListener('fetch', (event) => {
   // Кэшируем только собственные файлы приложения. Внешние запросы
   // (например, курс валют) обрабатываются своим кодом и в кэш не попадают.
   if (url.origin !== self.location.origin) return;
+  // Проверка версии на сайте всегда идёт в сеть
+  if (url.pathname.endsWith('/sw.js')) return;
 
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => {
