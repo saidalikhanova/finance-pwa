@@ -1,4 +1,4 @@
-import { money, displayToggle, loadDisplay } from '../display.js';
+import { money, displayToggle, loadDisplay, displayCurrency } from '../display.js';
 import { el, avatar, toast, confirmDialog, formatDate, formatMonth, shiftMonth, currentMonth } from '../ui.js';
 import { formatMoney, formatWhole } from '../money.js';
 import { listCategories } from '../repo/categories.js';
@@ -151,10 +151,16 @@ export async function renderBudget(root) {
       const right = debt && debt.debt > 0
         ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, debt.daysLate ? `просрочка ${debt.daysLate} дн.` : 'должны'))
         : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, money(f)), el('div', { class: 'muted small' }, 'получено'));
+      // «Получено» — как у ожидаемых поступлений: записать пришедшие деньги одним нажатием
+      if (orig) {
+        const date = month === today.slice(0, 7) ? today : `${month}-01`;
+        right.append(el('a', { class: 'btn btn-small expected-btn', href: `#/add?type=income&category=${c.id}&currency=${orig.currency}&date=${date}` }, 'Получено'));
+      }
+      const href = `#/budget/${month}/${c.id}`;
       incomeList.append(
-        el('a', { class: 'row', href: `#/budget/${month}/${c.id}` },
-          avatar(c.name, { income: true }),
-          el('div', { class: 'row-main' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), c.employer ? el('div', { class: 'small' }, c.employer) : el('div', { class: 'small muted' }, 'работодатель не указан'), el('div', { class: 'muted small' }, sub)),
+        el('div', { class: 'row' },
+          el('a', { href, style: 'display:contents' }, avatar(c.name, { income: true })),
+          el('a', { class: 'row-main', href, style: 'color:inherit;text-decoration:none' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), c.employer ? el('div', { class: 'small' }, c.employer) : el('div', { class: 'small muted' }, 'работодатель не указан'), el('div', { class: 'muted small' }, sub)),
           right,
         ),
       );
@@ -286,7 +292,7 @@ export function expectedRow(p, today, rate, nested = false) {
     ),
     el('div', { class: 'row-amount' },
       el('div', { class: st.status === 'received' ? 'income' : '' }, formatMoney(shown, p.currency)),
-      eur != null && st.status !== 'received' ? el('div', { class: 'muted small' }, `≈ ${money(eur)}`) : null,
+      eur != null && st.status !== 'received' && displayCurrency() !== p.currency ? el('div', { class: 'muted small' }, `≈ ${money(eur)}`) : null,
       st.status !== 'received' ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?planned=${p.id}` }, 'Получено') : null,
     ),
   );
