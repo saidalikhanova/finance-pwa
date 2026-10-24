@@ -81,8 +81,17 @@ export function goBack() {
   else location.replace(`#${fallbackBack}`);
 }
 
+// Переход по нижней вкладке начинает путь заново: «Назад» на разделе не нужен
+let fromTab = false;
+
 /** @param {string} path */
 function track(path) {
+  if (fromTab) {
+    fromTab = false;
+    stack.length = 0;
+    stack.push(path);
+    return;
+  }
   if (stack[stack.length - 1] === path) return;
   if (stack[stack.length - 2] === path) stack.pop();
   else stack.push(path);
@@ -102,10 +111,12 @@ export async function renderCurrent(root, titleEl, backEl) {
 
   titleEl.textContent = route.title;
   document.title = route.title === 'Главная' ? 'Финансы' : `${route.title} — Финансы`;
-  backEl.hidden = !route.back;
-  backEl.href = route.back ? `#${route.back}` : '#/';
   fallbackBack = route.back ?? '/';
   track(path);
+  // «Назад» — у вложенных экранов всегда, у разделов — если пришли с другого экрана
+  // (например, с главной в «Бюджет»), а не нажатием на нижнюю вкладку
+  backEl.hidden = !route.back && stack.length < 2;
+  backEl.href = route.back ? `#${route.back}` : '#/';
 
   root.innerHTML = '';
   window.scrollTo(0, 0);
@@ -124,6 +135,10 @@ export async function renderCurrent(root, titleEl, backEl) {
  */
 export function start(root, titleEl, backEl) {
   window.addEventListener('hashchange', () => renderCurrent(root, titleEl, backEl));
+  document.querySelectorAll('[data-route]').forEach((tab) => tab.addEventListener('click', () => {
+    // Нажатие на вкладку текущего экрана перехода не вызывает
+    if (tab.getAttribute('href') !== location.hash) fromTab = true;
+  }));
   backEl.addEventListener('click', (e) => {
     e.preventDefault();
     goBack();
