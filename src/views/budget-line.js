@@ -8,9 +8,9 @@ import { suggestRate, saveRate } from '../repo/rates.js';
 import { budgetState } from './budget.js';
 import { renderIncomeLine } from './income-line.js';
 import { segmented } from './form-parts.js';
-import { listLoans } from '../repo/loans.js';
+import { listLoans, loanLeft } from '../repo/loans.js';
+import { loanStatus } from './loan-form.js';
 import { isLoanCategory, scheduledInMonth } from '../loans.js';
-import { remaining } from '../recurring.js';
 import { formatWhole } from '../money.js';
 
 /**
@@ -196,15 +196,25 @@ async function loansCard(categoryId, month) {
   } else {
     const list = el('div', { class: 'list', style: 'margin:0 0 10px' });
     for (const s of loans) {
-      const left = remaining(s);
+      const left = await loanLeft(s);
       const day = Number(s.startDate.slice(8));
       const sub = [`${day} числа`, s.status === 'paused' ? 'на паузе' : s.status === 'finished' ? 'выплачен' : left ? `осталось платежей: ${left.count}` : 'срок не указан'].join(' · ');
       // Сумма кредита и сколько ещё выплатить по графику
       const money2 = [s.principal ? `кредит ${formatWhole(s.principal, s.currency)}` : null, left && left.count && s.status !== 'finished' ? `осталось выплатить ${formatWhole(left.amount, s.currency)}` : null].filter(Boolean).join(' · ');
-      list.append(el('a', { class: 'row', href: `#/loans/${s.id}?month=${month}` },
-        avatar(s.bank ?? s.name, { small: true }),
-        el('div', { class: 'row-main' }, el('div', null, s.name), el('div', { class: 'muted small' }, sub), money2 ? el('div', { class: 'muted small' }, money2) : null),
-        el('div', { class: 'row-amount expense' }, formatWhole(-s.amount, s.currency)),
+      const href = `#/loans/${s.id}?month=${month}`;
+      const status = await loanStatus(s);
+      list.append(el('div', { class: 'row' },
+        el('a', { href, style: 'display:contents' }, avatar(s.bank ?? s.name, { small: true })),
+        el('a', { class: 'row-main', href, style: 'color:inherit;text-decoration:none' },
+          el('div', null, s.name),
+          el('div', { class: 'muted small' }, sub),
+          money2 ? el('div', { class: 'muted small' }, money2) : null,
+          status.text ? el('div', { class: `small ${status.late ? 'warn' : ''}` }, status.text) : null,
+        ),
+        el('div', { class: 'row-amount expense' },
+          el('div', null, formatWhole(-s.amount, s.currency)),
+          status.canPay ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?loan=${s.id}` }, 'Оплачено') : null,
+        ),
       ));
     }
     card.append(list);
@@ -221,7 +231,8 @@ async function loansCard(categoryId, month) {
     };
     if (loans.length > 1) {
       const principalTotal = byCurrency((s) => s.principal ?? 0);
-      const leftTotal = byCurrency((s) => (s.status === 'finished' ? 0 : remaining(s)?.amount ?? 0));
+      const leftBy = new Map(await Promise.all(loans.map(async (s) => /** @type {[string, number]} */ ([s.id, (await loanLeft(s))?.amount ?? 0]))));
+      const leftTotal = byCurrency((s) => leftBy.get(s.id) ?? 0);
       const parts = [principalTotal ? `сумма кредитов ${principalTotal}` : null, leftTotal ? `осталось выплатить ${leftTotal}` : null].filter(Boolean);
       if (parts.length) card.append(el('p', { class: 'small', style: 'margin:0 0 6px' }, `Всего: ${parts.join(' · ')}`));
     }

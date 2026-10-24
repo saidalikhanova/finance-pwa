@@ -4,7 +4,9 @@ import { listBanks, addBank, renameBank, removeBank } from '../src/repo/banks.js
 import { createSchedule, getSchedule, generateDue } from '../src/repo/recurring.js';
 import { listPlanned } from '../src/repo/planned.js';
 import { listOperations } from '../src/repo/operations.js';
-import { ensureLoanCategory } from '../src/repo/loans.js';
+import { ensureLoanCategory, loanDue, settleLoanPayment, loanPayments } from '../src/repo/loans.js';
+import { createOperation } from '../src/repo/operations.js';
+import { listUpcoming } from '../src/repo/upcoming.js';
 import { loanName, loanPurpose, scheduledInMonth, isLoanCategory } from '../src/loans.js';
 import { monthEvents } from '../src/calendar-events.js';
 
@@ -108,4 +110,43 @@ test('кредит: сумма кредита (основной долг) сох
   old = await openDatabase(DB);
   assert.equal(/** @type {any[]} */ (await getAll(old, 'recurring'))[0].principal, null);
   old.close();
+});
+
+test('кредит: «Оплачено» — заранее, в срок и просроченный; оплата привязана к кредиту', async () => {
+  const db = await fresh();
+  const loan = await createSchedule({ name: 'Кредит Kaspi', bank: 'Kaspi', type: 'expense', amount: 45000 * T, currency: 'KZT', categoryId: 'loans', period: 'monthly', startDate: '2026-11-15', endType: 'count', count: 2, confirm: true }, db);
+  const other = await createSchedule({ name: 'Кредит Halyk', bank: 'Halyk', type: 'expense', amount: 30000 * T, currency: 'KZT', categoryId: 'loans', period: 'monthly', startDate: '2026-11-05', confirm: true }, db);
+  const pay = async (/** @type {any} */ s, /** @type {string} */ date) => {
+    const due = await loanDue(s, db);
+    const op = await createOperation({ type: 'expense', amount: s.amount, currency: 'KZT', date, categoryId: 'loans', comment: s.name, rate: 5000000, recurringId: s.id }, db);
+    await settleLoanPayment(s, /** @type {any} */ (due), { operationId: op.id, date, amount: s.amount }, db);
+    return due;
+  };
+
+  // Заранее: 12 ноября за платёж 15 ноября
+  const d1 = await pay(loan, '2026-11-12');
+  assert.equal(d1?.date, '2026-11-15');
+  let s = await getSchedule(loan.id, db);
+  assert.equal(s?.generatedCount, 1);
+  assert.equal(await generateDue('2026-11-20', db) >= 0, true);
+  assert.equal((await listPlanned({ type: 'expense' }, db)).filter((p) => p.recurringId === loan.id).length, 0, '15-го «к оплате» не появляется — уже оплачено');
+  assert.equal((await loanDue(/** @type {any} */ (await getSchedule(loan.id, db)), db))?.date, '2026-12-15', 'следующий — декабрь');
+  const up = await listUpcoming('2026-11-01', '2026-11-30', db);
+  assert.ok(!up.some((u) => u.name === 'Кредит Kaspi'), 'в календаре ноябрьский платёж больше не висит');
+
+  // Просроченный «к оплате» по другому кредиту закрывается оплатой
+  const due2 = await loanDue(/** @type {any} */ (await getSchedule(other.id, db)), db);
+  assert.equal(due2?.planned?.date, '2026-11-05', 'создан «к оплате» за 5 ноября');
+  await pay(await getSchedule(other.id, db), '2026-11-20');
+  assert.equal((await listPlanned({ type: 'expense' }, db)).filter((p) => p.recurringId === other.id).length, 0);
+
+  // Последний платёж по Kaspi — кредит выплачен
+  await pay(await getSchedule(loan.id, db), '2026-12-10');
+  s = await getSchedule(loan.id, db);
+  assert.equal(s?.status, 'finished');
+  assert.equal(await loanDue(/** @type {any} */ (s), db), null);
+
+  const history = await loanPayments(loan.id, db);
+  assert.deepEqual(history.map((o) => o.date), ['2026-12-10', '2026-11-12'], 'история — только этого кредита, новые сверху');
+  db.close();
 });

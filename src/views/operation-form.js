@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog } from '../ui.js';
+import { el, toast, confirmDialog, formatDate } from '../ui.js';
 import { parseAmount, amountToInput, formatMoney, parseRate, formatRate, toEurCents } from '../money.js';
 import { suggestRate, saveRate } from '../repo/rates.js';
 import { getBudgetLine } from '../repo/budgets.js';
@@ -9,7 +9,9 @@ import { itemsEditor } from './items-editor.js';
 import { ensureProducts } from '../repo/products.js';
 import { compressImage, savePhoto, getPhoto, deletePhoto } from '../photos.js';
 import { getPlanned, markReceived } from '../repo/planned.js';
-import { navigate } from '../router.js';
+import { navigate, goBack } from '../router.js';
+import { getSchedule } from '../repo/recurring.js';
+import { loanDue, settleLoanPayment } from '../repo/loans.js';
 import {
   createOperation,
   updateOperation,
@@ -39,7 +41,12 @@ export async function renderOperationForm(root, params) {
   // Предзаполнение из списка желаемых покупок («Куплено») или разового платежа («Оплачено»).
   const wish = isNew && params.wish ? await getWish(params.wish) : null;
   const plannedPay = isNew && params.planned ? await getPlanned(params.planned) : null;
-  const preset = wish
+  // Оплата кредита: от конкретного кредита («Оплачено» в «Мои кредиты» или на экране кредита)
+  const loan = isNew && params.loan ? await getSchedule(params.loan) : null;
+  const loanDueInfo = loan ? await loanDue(loan) : null;
+  const preset = loan
+    ? { type: 'expense', amount: loan.amount, currency: loan.currency, categoryId: loan.categoryId, comment: loan.name, date: todayISO() }
+    : wish
     ? { type: 'expense', amount: wish.price, currency: wish.currency, categoryId: wish.categoryId, comment: wish.name, date: null }
     : plannedPay
       ? {
@@ -56,7 +63,11 @@ export async function renderOperationForm(root, params) {
         : null;
 
   const form = el('form', { class: 'form', novalidate: true, onsubmit: onSubmit });
-  const hint = wish
+  const hint = loan
+    ? el('div', { class: 'banner' },
+        el('strong', null, `Оплата кредита: ${loan.name}`),
+        el('div', { class: 'small' }, loanDueInfo ? `Платёж по графику ${formatDate(loanDueInfo.date)} — ${formatMoney(loan.amount, loan.currency)}. Если заплатили другую сумму или в другой день — исправьте.` : 'По графику платежей больше нет.'))
+    : wish
     ? el('p', { class: 'muted small' }, `Покупка из списка желаний: «${wish.name}». Проверьте сумму и сохраните.`)
     : plannedPay
       ? el('p', { class: 'muted small' }, plannedPay.type === 'income'
@@ -314,6 +325,8 @@ export async function renderOperationForm(root, params) {
       photoId,
       rate,
       rateSource: rate ? /** @type {const} */ ('manual') : null,
+      // Связь с кредитом (или другим платежом по расписанию)
+      recurringId: loan?.id ?? plannedPay?.recurringId ?? existing?.recurringId ?? null,
     };
     try {
       if (existing) {
@@ -322,6 +335,12 @@ export async function renderOperationForm(root, params) {
         const op = await createOperation(data);
         if (wish) await updateWish(wish.id, { status: 'bought', boughtAt: data.date, actualPrice: data.amount, operationId: op.id });
         if (plannedPay) await markReceived(plannedPay.id, { operationId: op.id, date: data.date, amount: data.amount });
+        if (loan && loanDueInfo) {
+          await settleLoanPayment(loan, loanDueInfo, { operationId: op.id, date: data.date, amount: data.amount });
+          toast(`Оплата записана: ${loan.name}`);
+          goBack();
+          return;
+        }
       }
       let message = existing ? 'Изменения сохранены' : 'Операция сохранена';
       if (rate) {

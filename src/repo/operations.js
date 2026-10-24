@@ -23,6 +23,7 @@ import { normalizeItems, itemsTotal, categoryAmountsEur } from '../items.js';
  * @property {string} store — магазин (необязательно)
  * @property {string | null} photoId — фото чека
  * @property {string | null} [debtId] — возврат долга (раздел «Мои долги»)
+ * @property {string | null} [recurringId] — платёж по расписанию (например, оплата кредита)
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -73,6 +74,7 @@ export function normalizeOperation(input) {
     store: (input.store ?? '').trim(),
     photoId: input.photoId ?? null,
     debtId: input.debtId ?? null,
+    recurringId: input.recurringId ?? null,
   };
 }
 
