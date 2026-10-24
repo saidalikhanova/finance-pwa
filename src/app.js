@@ -43,13 +43,13 @@ register('/payments/new', { title: 'Повторяющийся платёж', ba
 register('/payments/:id', { title: 'Повторяющийся платёж', back: '/payments', tab: '/more', render: renderPaymentForm });
 register('/planned/new', { title: 'Разовый платёж', back: '/payments', tab: '/more', render: renderPlannedForm });
 register('/planned/:id', { title: 'Разовый платёж', back: '/payments', tab: '/more', render: renderPlannedForm });
-register('/calendar', { title: 'Календарь платежей', back: '/more', tab: '/more', render: renderCalendar });
+register('/calendar', { title: 'Календарь', render: renderCalendar });
 register('/wishes', { title: 'Желаемые покупки', back: '/more', tab: '/more', render: renderWishes });
 register('/import', { title: 'Импорт из чата', back: '/operations', tab: '/operations', render: renderImport });
 register('/products', { title: 'Продукты', back: '/more', tab: '/more', render: renderProducts });
 register('/products/:id', { title: 'Продукт', back: '/products', tab: '/more', render: renderProduct });
-register('/product-reports', { title: 'Отчёт по продуктам', back: '/reports', tab: '/reports', render: renderProductReports });
-register('/forecast', { title: 'Прогноз закупок', back: '/product-reports', tab: '/reports', render: renderForecast });
+register('/product-reports', { title: 'Отчёт по продуктам', back: '/reports', tab: '/more', render: renderProductReports });
+register('/forecast', { title: 'Прогноз закупок', back: '/product-reports', tab: '/more', render: renderForecast });
 register('/income/new', { title: 'Источник дохода', back: '/budget', tab: '/budget', render: renderIncomeSource });
 register('/debts', { title: 'Мои долги', back: '/more', tab: '/more', render: renderDebts });
 register('/debts/new', { title: 'Новый долг', back: '/debts', tab: '/more', render: renderDebt });
@@ -58,7 +58,7 @@ register('/backup', { title: 'Резервная копия', back: '/more', tab
 register('/settings', { title: 'Настройки', back: '/more', tab: '/more', render: renderSettings });
 register('/wishes/new', { title: 'Новая запись', back: '/wishes', tab: '/more', render: renderWishForm });
 register('/wishes/:id', { title: 'Желаемая покупка', back: '/wishes', tab: '/more', render: renderWishForm });
-register('/reports', { title: 'Отчёты', render: renderReports });
+register('/reports', { title: 'Отчёты', back: '/more', tab: '/more', render: renderReports });
 register('/more', { title: 'Ещё', render: renderMore });
 register('/categories', { title: 'Категории', back: '/more', tab: '/more', render: renderCategories });
 

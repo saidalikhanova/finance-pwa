@@ -4,10 +4,10 @@ import { el } from '../ui.js';
 export function renderMore(root) {
   root.append(
     el('div', { class: 'card list-card' },
+      menu('#/reports', 'Отчёты'),
       menu('#/import', 'Импорт из чата'),
       menu('#/debts', 'Мои долги'),
       menu('#/payments', 'Платежи'),
-      menu('#/calendar', 'Календарь платежей'),
       menu('#/wishes', 'Желаемые покупки'),
     ),
     el('div', { class: 'card list-card' },

@@ -449,3 +449,12 @@ details[hidden] { display: none; }
 /* Ожидаемое поступление под своим источником дохода */
 .expected-nested { padding-left: 44px; }
 .expected-nested .avatar { width: 32px; height: 32px; }
+
+/* Календарь: две точки — оплатить (красная) и получить (зелёная) */
+.cal-dots { position: absolute; left: 0; right: 0; bottom: 3px; display: flex; justify-content: center; gap: 3px; }
+.cal-dots .cal-dot { position: static; margin: 0; }
+.cal-dot-out { background: var(--danger); }
+.cal-dot-in { background: var(--ok); }
+.cal-selected .cal-dot-out, .cal-selected .cal-dot-in { background: var(--accent-text); }
+.cal-legend { display: inline-block; position: static; margin: 0 2px 1px 0; vertical-align: middle; }
+.cal-total { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
