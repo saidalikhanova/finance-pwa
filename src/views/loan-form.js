@@ -59,8 +59,13 @@ export async function renderLoanForm(root, params) {
 
   const purposeInput = el('input', { class: 'input', value: existing ? loanPurpose(existing) : '', placeholder: 'ипотека, авто, потребительский', maxlength: 60 });
   const amountInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: existing ? amountToInput(existing.amount).replace(/,00$/, '') : '' });
+  const principalInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: existing?.principal ? amountToInput(existing.principal).replace(/,00$/, '') : '' });
   let currency = existing?.currency ?? 'KZT';
-  const currencyToggle = segmented([['KZT', '₸'], ['EUR', '€']], currency, (v) => (currency = /** @type {'EUR' | 'KZT'} */ (v)));
+  const principalUnit = el('span', { class: 'muted' }, currency === 'KZT' ? '₸' : '€');
+  const currencyToggle = segmented([['KZT', '₸'], ['EUR', '€']], currency, (v) => {
+    currency = /** @type {'EUR' | 'KZT'} */ (v);
+    principalUnit.textContent = currency === 'KZT' ? '₸' : '€';
+  });
   const startInput = /** @type {HTMLInputElement} */ (el('input', { class: 'input', type: 'date', value: existing?.startDate ?? todayISO() }));
 
   let endType = existing?.endType ?? 'date';
@@ -84,6 +89,7 @@ export async function renderLoanForm(root, params) {
     field('Банк', bankSelect, el('p', { class: 'muted small' }, 'Список банков — «Ещё» → «Банки».')),
     field('Что за кредит (необязательно)', purposeInput),
     field('Платёж в месяц', el('div', { class: 'amount-row' }, amountInput, currencyToggle)),
+    field('Сумма кредита (основной долг), необязательно', el('div', { class: 'amount-row' }, principalInput, principalUnit), el('p', { class: 'muted small' }, 'Сколько взяли в кредит или сколько основного долга осталось — как вам удобнее. В той же валюте, что и платёж.')),
     field(existing ? 'Дата платежа (её число — день платежа каждый месяц)' : 'Дата ближайшего платежа', startInput, el('p', { class: 'muted small' }, 'Число этой даты — день платежа каждый месяц.')),
     field('Когда закончится', endToggle),
     endDateField,
@@ -101,10 +107,14 @@ export async function renderLoanForm(root, params) {
     if (!bank || bank === ADD_BANK) return toast('Выберите банк', { error: true });
     const amount = parseAmount(/** @type {HTMLInputElement} */ (amountInput).value);
     if (amount == null) return toast('Введите платёж в месяц, например 45000', { error: true });
+    const principalText = /** @type {HTMLInputElement} */ (principalInput).value.trim();
+    const principal = principalText ? parseAmount(principalText) : null;
+    if (principalText && principal == null) return toast('Сумма кредита: введите число, например 2000000', { error: true });
     try {
       const data = {
         name: loanName(bank, /** @type {HTMLInputElement} */ (purposeInput).value),
         bank,
+        principal,
         type: /** @type {const} */ ('expense'),
         amount,
         currency: /** @type {'EUR' | 'KZT'} */ (currency),

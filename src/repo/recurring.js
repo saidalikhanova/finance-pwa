@@ -23,6 +23,8 @@ export function normalizeSchedule(input) {
   const endType = input.endType ?? 'none';
   if (endType === 'date' && (!input.endDate || input.endDate < input.startDate)) throw new Error('Дата окончания раньше даты начала');
   if (endType === 'count' && (!Number.isInteger(input.count) || /** @type {number} */ (input.count) < 1)) throw new Error('Число платежей должно быть не меньше 1');
+  const principal = input.principal ?? null;
+  if (principal != null && (!Number.isSafeInteger(principal) || principal <= 0)) throw new Error('Сумма кредита должна быть больше нуля');
   return {
     name,
     type: input.type,
@@ -39,6 +41,7 @@ export function normalizeSchedule(input) {
     // и для платежей по кредиту («Оплачено»); у прочих расходов — нет
     confirm: Boolean(input.confirm) && (input.type === 'income' || Boolean(input.bank?.trim())),
     bank: input.bank?.trim() || null,
+    principal: input.bank?.trim() ? principal : null,
   };
 }
 

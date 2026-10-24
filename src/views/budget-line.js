@@ -199,13 +199,32 @@ async function loansCard(categoryId, month) {
       const left = remaining(s);
       const day = Number(s.startDate.slice(8));
       const sub = [`${day} числа`, s.status === 'paused' ? 'на паузе' : s.status === 'finished' ? 'выплачен' : left ? `осталось платежей: ${left.count}` : 'срок не указан'].join(' · ');
+      // Сумма кредита и сколько ещё выплатить по графику
+      const money2 = [s.principal ? `кредит ${formatWhole(s.principal, s.currency)}` : null, left && left.count && s.status !== 'finished' ? `осталось выплатить ${formatWhole(left.amount, s.currency)}` : null].filter(Boolean).join(' · ');
       list.append(el('a', { class: 'row', href: `#/loans/${s.id}?month=${month}` },
         avatar(s.bank ?? s.name, { small: true }),
-        el('div', { class: 'row-main' }, el('div', null, s.name), el('div', { class: 'muted small' }, sub)),
+        el('div', { class: 'row-main' }, el('div', null, s.name), el('div', { class: 'muted small' }, sub), money2 ? el('div', { class: 'muted small' }, money2) : null),
         el('div', { class: 'row-amount expense' }, formatWhole(-s.amount, s.currency)),
       ));
     }
     card.append(list);
+    // Итого по кредитам: суммы кредитов и сколько ещё выплатить — по валютам
+    /** @type {(pick: (s: import('../recurring.js').Schedule) => number) => string} */
+    const byCurrency = (pick) => {
+      /** @type {Map<'EUR' | 'KZT', number>} */
+      const m = new Map();
+      for (const s of loans) {
+        const v = pick(s);
+        if (v) m.set(s.currency, (m.get(s.currency) ?? 0) + v);
+      }
+      return [...m].map(([c, a]) => formatWhole(a, c)).join(' + ');
+    };
+    if (loans.length > 1) {
+      const principalTotal = byCurrency((s) => s.principal ?? 0);
+      const leftTotal = byCurrency((s) => (s.status === 'finished' ? 0 : remaining(s)?.amount ?? 0));
+      const parts = [principalTotal ? `сумма кредитов ${principalTotal}` : null, leftTotal ? `осталось выплатить ${leftTotal}` : null].filter(Boolean);
+      if (parts.length) card.append(el('p', { class: 'small', style: 'margin:0 0 6px' }, `Всего: ${parts.join(' · ')}`));
+    }
     // Сколько платить в этом месяце — по валютам
     /** @type {Map<string, number>} */
     const sums = new Map();

@@ -106,6 +106,7 @@ export async function renderPaymentForm(root, params) {
       count: Number(countInput.value),
       confirm: confirmBox.checked,
       bank: existing?.bank ?? null,
+      principal: existing?.principal ?? null,
     };
     try {
       if (existing) await updateSchedule(existing.id, data);

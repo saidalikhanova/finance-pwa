@@ -153,6 +153,22 @@ export const MIGRATIONS = [
       };
     },
   },
+  {
+    version: 12,
+    upgrade(_db, tx) {
+      // У кредитов — сумма кредита (основной долг); у старых платежей — пусто
+      const rec = tx.objectStore('recurring').openCursor();
+      rec.onsuccess = () => {
+        const cur = rec.result;
+        if (!cur) return;
+        // Миграции одного обновления идут одной транзакцией: курсор может прочитать
+        // запись до изменений миграции 11 — поэтому поле «банк» тоже заполняется здесь
+        const v = cur.value;
+        if (v.principal === undefined || v.bank === undefined) cur.update({ ...v, bank: v.bank ?? null, principal: v.principal ?? null });
+        cur.continue();
+      };
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

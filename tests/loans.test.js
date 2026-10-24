@@ -89,3 +89,23 @@ test('миграция 11: «Кредиты» у существующих кат
   assert.equal((await getAll(db, 'categories')).length, 0, 'новая база: категории придут из списка по умолчанию');
   db.close();
 });
+
+test('кредит: сумма кредита (основной долг) сохраняется; миграция 12', async () => {
+  const db = await fresh();
+  const base = { name: 'Кредит Kaspi', bank: 'Kaspi', type: /** @type {const} */ ('expense'), amount: 45000 * T, currency: /** @type {const} */ ('KZT'), categoryId: 'loans', period: /** @type {const} */ ('monthly'), startDate: '2026-11-15', confirm: true };
+  const s = await createSchedule({ ...base, principal: 2_000_000 * T }, db);
+  assert.equal(s.principal, 2_000_000 * T);
+  assert.equal((await createSchedule({ ...base }, db)).principal, null, 'необязательно');
+  await assert.rejects(() => createSchedule({ ...base, principal: -1 }, db), 'не меньше нуля');
+  const plain = await createSchedule({ ...base, bank: null, principal: 5 }, db);
+  assert.equal(plain.principal, null, 'только у кредитов');
+  db.close();
+
+  await deleteDatabase(DB);
+  let old = await openDatabase(DB, MIGRATIONS.filter((m) => m.version <= 11));
+  await put(old, 'recurring', { id: 'r', name: 'Кредит', bank: 'Kaspi', type: 'expense', amount: 1, currency: 'KZT', categoryId: 'x', period: 'monthly', intervalDays: 0, startDate: '2026-10-01', endType: 'none', endDate: null, count: null, status: 'active', generatedCount: 0, lastGeneratedDate: null, createdAt: '', updatedAt: '' });
+  old.close();
+  old = await openDatabase(DB);
+  assert.equal(/** @type {any[]} */ (await getAll(old, 'recurring'))[0].principal, null);
+  old.close();
+});
