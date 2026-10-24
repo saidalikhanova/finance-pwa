@@ -2,6 +2,7 @@ import { el, avatar, formatMonth, shiftMonth, currentMonth, formatDate } from '.
 import { formatMoney, formatWhole, toEurCents } from '../money.js';
 import { money, displayToggle, loadDisplay } from '../display.js';
 import { monthEvents } from '../calendar-events.js';
+import { isLoanCategory } from '../loans.js';
 import { listAllLines } from '../repo/budgets.js';
 import { listCategories } from '../repo/categories.js';
 import { listDebts, listRepayments } from '../repo/debts.js';
@@ -55,6 +56,7 @@ export async function renderCalendar(root) {
       planned: await listPlanned({ from, to }),
       sources,
       debts,
+      loanCategories: (await listCategories({ kind: 'expense', includeArchived: true })).filter(isLoanCategory).map((c) => c.id),
     });
 
     // Траты по дням: «когда» уходят деньги

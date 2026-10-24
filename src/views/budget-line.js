@@ -1,4 +1,4 @@
-import { el, toast, formatMonth, confirmDialog } from '../ui.js';
+import { el, avatar, toast, formatMonth, confirmDialog } from '../ui.js';
 import { parseAmount, amountToInput, formatMoney, toEurCents, fromEurCents, formatRate } from '../money.js';
 import { navigate } from '../router.js';
 import { getCategory } from '../repo/categories.js';
@@ -8,6 +8,10 @@ import { suggestRate, saveRate } from '../repo/rates.js';
 import { budgetState } from './budget.js';
 import { renderIncomeLine } from './income-line.js';
 import { segmented } from './form-parts.js';
+import { listLoans } from '../repo/loans.js';
+import { isLoanCategory, scheduledInMonth } from '../loans.js';
+import { remaining } from '../recurring.js';
+import { formatWhole } from '../money.js';
 
 /**
  * План и лимит категории на месяц. Суммы можно вводить в евро или тенге;
@@ -113,8 +117,13 @@ export async function renderBudgetLine(root, params) {
       ? el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`)
       : el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRemove }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`),
   );
+  // Категория «Кредиты»: список кредитов и платежи этого месяца — над планом
+  if (isLoanCategory(category)) {
+    root.append(await loansCard(categoryId, month));
+  } else {
+    plannedInput.focus();
+  }
   root.append(form);
-  plannedInput.focus();
 
   async function onRemove() {
     const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Категория останется в других месяцах, записанные операции не удаляются.`, 'Убрать');
@@ -172,4 +181,40 @@ function parseOptional(value) {
   const s = value.replace(/\s+/g, '').replace(',', '.');
   if (s === '0' || s === '0.00' || s === '0.0') return 0;
   return parseAmount(value) ?? false;
+}
+
+/**
+ * «Мои кредиты»: все кредиты, платежи месяца, кнопка «+ Кредит».
+ * @param {string} categoryId
+ * @param {string} month
+ */
+async function loansCard(categoryId, month) {
+  const loans = (await listLoans()).filter((s) => s.categoryId === categoryId);
+  const card = el('div', { class: 'card' }, el('div', { class: 'card-title' }, 'Мои кредиты'));
+  if (!loans.length) {
+    card.append(el('p', { class: 'muted small', style: 'margin:0 0 10px' }, 'Добавьте кредит: банк, платёж в месяц и день платежа — он появится в календаре каждый месяц до последнего платежа.'));
+  } else {
+    const list = el('div', { class: 'list', style: 'margin:0 0 10px' });
+    for (const s of loans) {
+      const left = remaining(s);
+      const day = Number(s.startDate.slice(8));
+      const sub = [`${day} числа`, s.status === 'paused' ? 'на паузе' : s.status === 'finished' ? 'выплачен' : left ? `осталось платежей: ${left.count}` : 'срок не указан'].join(' · ');
+      list.append(el('a', { class: 'row', href: `#/loans/${s.id}?month=${month}` },
+        avatar(s.bank ?? s.name, { small: true }),
+        el('div', { class: 'row-main' }, el('div', null, s.name), el('div', { class: 'muted small' }, sub)),
+        el('div', { class: 'row-amount expense' }, formatWhole(-s.amount, s.currency)),
+      ));
+    }
+    card.append(list);
+    // Сколько платить в этом месяце — по валютам
+    /** @type {Map<string, number>} */
+    const sums = new Map();
+    for (const { s } of scheduledInMonth(loans, categoryId, month)) sums.set(s.currency, (sums.get(s.currency) ?? 0) + s.amount);
+    if (sums.size) {
+      const total = [...sums].map(([c, a]) => formatWhole(a, /** @type {'EUR' | 'KZT'} */ (c))).join(' + ');
+      card.append(el('p', { class: 'small', style: 'margin:0 0 10px' }, `Платежей в ${formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ')}: ${total}`));
+    }
+  }
+  card.append(el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/loans/new?month=${month}` }, '+ Кредит'));
+  return card;
 }

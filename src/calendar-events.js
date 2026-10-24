@@ -24,10 +24,12 @@ const MONTHS_GEN = ['январь', 'февраль', 'март', 'апрель'
  *   planned: import('./repo/planned.js').PlannedPayment[],
  *   sources: { category: import('./repo/categories.js').Category, lines: import('./repo/budgets.js').BudgetLine[] }[],
  *   debts: { debt: import('./repo/debts.js').Debt, remaining: number }[],
+ *   loanCategories?: string[],
  * }} p
  *   upcoming — платежи с точной датой (повторяющиеся и разовые);
  *   planned — неполученные разовые записи месяца (берутся только «в течение месяца»);
- *   sources — источники дохода с их строками бюджета; debts — открытые долги с остатком
+ *   sources — источники дохода с их строками бюджета; debts — открытые долги с остатком;
+ *   loanCategories — id категорий «Кредиты» (подпись «кредит»)
  * @returns {{ dated: CalEvent[], undated: CalEvent[] }}
  */
 export function monthEvents(p) {
@@ -42,7 +44,7 @@ export function monthEvents(p) {
     dated.push({
       date: it.date,
       name: it.name,
-      sub: it.source === 'recurring' ? 'повторяющийся' : 'разовый',
+      sub: p.loanCategories?.includes(it.categoryId) ? 'кредит' : it.source === 'recurring' ? 'повторяющийся' : 'разовый',
       type: it.type,
       amount: it.amount,
       currency: it.currency,

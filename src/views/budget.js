@@ -10,6 +10,8 @@ import { incomeExpectations, expectedStatus, whenLabel } from '../expected.js';
 import { limitStatus, pluralDays } from '../limits.js';
 import { listWishes, planWishes } from '../repo/wishes.js';
 import { suggestRate } from '../repo/rates.js';
+import { listSchedules } from '../repo/recurring.js';
+import { scheduledInMonth } from '../loans.js';
 import { toEurCents } from '../money.js';
 
 // Месяц сохраняется между переходами, чтобы после правки строки
@@ -53,6 +55,19 @@ export async function renderBudget(root) {
     const today = todayISO();
     // Ожидаемые поступления месяца: входят в план доходов
     const rate = (await suggestRate(today))?.rate ?? null;
+    // Платежи по расписанию (кредиты и др.) в этом месяце — план расходов «по графику»
+    const schedules = await listSchedules();
+    const scheduledEur = (/** @type {string} */ catId) => scheduledInMonth(schedules, catId, month).reduce((sum, { s }) => sum + (toEurCents(s.amount, s.currency, rate) ?? 0), 0);
+    // Подпись «по графику»: в валюте показа, а без курса — в валютах платежей
+    const scheduledLabel = (/** @type {string} */ catId) => {
+      const items = scheduledInMonth(schedules, catId, month);
+      if (!items.length) return '';
+      if (rate || items.every(({ s }) => s.currency === 'EUR')) return money(scheduledEur(catId));
+      /** @type {Map<'EUR' | 'KZT', number>} */
+      const by = new Map();
+      for (const { s } of items) by.set(s.currency, (by.get(s.currency) ?? 0) + s.amount);
+      return [...by].map(([c, a]) => formatWhole(a, c)).join(' + ');
+    };
     const { from, to } = monthRange(month);
     const monthIncome = await listPlanned({ from, to, includeDone: true, type: 'income' });
     const exp = incomeExpectations(monthIncome, month, (p) => toEurCents(p.amount, p.currency, rate));
@@ -95,7 +110,7 @@ export async function renderBudget(root) {
         planIncome += (inheritedOnly ? 0 : effectivePlanEur(catLines, month, rate) ?? 0) + (exp.byCategory.get(c.id)?.planned ?? 0);
         factIncome += f;
       } else {
-        planExpense += line?.planned ?? 0;
+        planExpense += line?.planned ?? scheduledEur(c.id);
         factExpense += f;
       }
     }
@@ -185,7 +200,7 @@ export async function renderBudget(root) {
         continue;
       }
       if (c.archived && !line && !f) continue;
-      expenseList.append(expenseRow(c, line, f, month, today));
+      expenseList.append(expenseRow(c, line, f, month, today, scheduledLabel(c.id)));
     }
     body.append(expenseList);
 
@@ -324,8 +339,9 @@ function totalRow(label, plan, fact, cls = '', signed = false) {
  * @param {number} fact
  * @param {string} month
  * @param {string} today
+ * @param {string} [scheduled] — платежи по расписанию в месяце (подпись суммы)
  */
-function expenseRow(c, line, fact, month, today) {
+function expenseRow(c, line, fact, month, today, scheduled = '') {
   const name = c.archived ? `${c.name} (архив)` : c.name;
   const limit = line?.limit ?? null;
   const planned = line?.planned ?? null;
@@ -336,6 +352,7 @@ function expenseRow(c, line, fact, month, today) {
 
   const notes = [];
   if (planned != null) notes.push(`план ${money(planned)}`);
+  else if (scheduled) notes.push(`по графику ${scheduled}`);
 
   if (limit != null) {
     const s = limitStatus(limit, fact, month, today);

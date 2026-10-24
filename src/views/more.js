@@ -17,6 +17,7 @@ export function renderMore(root) {
     ),
     el('div', { class: 'card list-card' },
       menu('#/categories', 'Категории'),
+      menu('#/banks', 'Банки'),
       menu('#/rates', 'Курсы тенге к евро'),
       menu('#/backup', 'Резервная копия'),
       menu('#/settings', 'Настройки'),

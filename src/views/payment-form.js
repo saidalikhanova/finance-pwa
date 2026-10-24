@@ -6,6 +6,7 @@ import { createSchedule, updateSchedule, getSchedule } from '../repo/recurring.j
 import { todayISO } from '../repo/operations.js';
 import { PERIOD_LABEL } from '../recurring.js';
 import { field, segmented, categorySelectFor } from './form-parts.js';
+import { renderLoanForm } from './loan-form.js';
 
 /**
  * Форма повторяющегося платежа.
@@ -18,6 +19,8 @@ export async function renderPaymentForm(root, params) {
     root.append(el('p', { class: 'muted' }, 'Платёж не найден.'));
     return;
   }
+  // Кредит — своя форма (банк, платёж в месяц, срок)
+  if (existing?.bank) return renderLoanForm(root, params);
   const categories = await listCategories({ includeArchived: true });
 
   const nameInput = el('input', { class: 'input', value: existing?.name ?? '', placeholder: 'Аренда, подписка, кредит…', maxlength: 80 });
@@ -102,6 +105,7 @@ export async function renderPaymentForm(root, params) {
       endDate: endDateInput.value || null,
       count: Number(countInput.value),
       confirm: confirmBox.checked,
+      bank: existing?.bank ?? null,
     };
     try {
       if (existing) await updateSchedule(existing.id, data);

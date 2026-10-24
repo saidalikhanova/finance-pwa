@@ -14,6 +14,8 @@ import { renderPayments } from './views/payments.js';
 import { renderPaymentForm } from './views/payment-form.js';
 import { renderPlannedForm } from './views/planned-form.js';
 import { renderCalendar } from './views/calendar.js';
+import { renderLoanForm } from './views/loan-form.js';
+import { renderBanks } from './views/banks.js';
 import { renderWishes } from './views/wishes.js';
 import { renderWishForm } from './views/wish-form.js';
 import { renderImport } from './views/import.js';
@@ -44,6 +46,9 @@ register('/payments/:id', { title: 'Повторяющийся платёж', ba
 register('/planned/new', { title: 'Разовый платёж', back: '/payments', tab: '/more', render: renderPlannedForm });
 register('/planned/:id', { title: 'Разовый платёж', back: '/payments', tab: '/more', render: renderPlannedForm });
 register('/calendar', { title: 'Календарь', render: renderCalendar });
+register('/loans/new', { title: 'Новый кредит', back: '/budget', tab: '/budget', render: renderLoanForm });
+register('/loans/:id', { title: 'Кредит', back: '/budget', tab: '/budget', render: renderLoanForm });
+register('/banks', { title: 'Банки', back: '/more', tab: '/more', render: renderBanks });
 register('/wishes', { title: 'Желаемые покупки', back: '/more', tab: '/more', render: renderWishes });
 register('/import', { title: 'Импорт из чата', back: '/operations', tab: '/operations', render: renderImport });
 register('/products', { title: 'Продукты', back: '/more', tab: '/more', render: renderProducts });

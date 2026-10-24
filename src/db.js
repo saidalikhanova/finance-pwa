@@ -129,6 +129,30 @@ export const MIGRATIONS = [
       };
     },
   },
+  {
+    version: 11,
+    upgrade(_db, tx) {
+      // Кредиты: у повторяющихся платежей — банк (из справочника банков);
+      // у уже заведённых категорий расходов появляется «Кредиты».
+      const rec = tx.objectStore('recurring').openCursor();
+      rec.onsuccess = () => {
+        const cur = rec.result;
+        if (!cur) return;
+        if (cur.value.bank === undefined) cur.update({ ...cur.value, bank: null });
+        cur.continue();
+      };
+      const cats = tx.objectStore('categories');
+      const all = cats.getAll();
+      all.onsuccess = () => {
+        const rows = all.result;
+        if (!rows.length) return; // новая база — «Кредиты» придут с категориями по умолчанию
+        const expense = rows.filter((c) => c.kind === 'expense');
+        if (expense.some((c) => c.name.toLowerCase() === 'кредиты')) return;
+        const order = expense.reduce((m, c) => Math.max(m, c.order), -1) + 1;
+        cats.add({ id: crypto.randomUUID(), name: 'Кредиты', kind: 'expense', archived: false, order, createdAt: new Date().toISOString(), employer: '', payDay: null, payNextMonth: false });
+      };
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

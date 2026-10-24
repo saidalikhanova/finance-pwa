@@ -16,6 +16,7 @@ import './backup.test.js';
 import './expected.test.js';
 import './income.test.js';
 import './calendar.test.js';
+import './loans.test.js';
 import './debts.test.js';
 
 run();
