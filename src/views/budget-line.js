@@ -227,7 +227,7 @@ async function loansCard(categoryId, month) {
         ),
         el('div', { class: 'row-amount expense' },
           el('div', null, formatWhole(-s.amount, s.currency)),
-          status.canPay ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?loan=${s.id}` }, 'Оплачено') : null,
+          status.canPay ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?loan=${s.id}` }, 'Отметить оплату') : null,
         ),
       ));
     }

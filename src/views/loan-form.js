@@ -106,18 +106,20 @@ export async function renderLoanForm(root, params) {
     const pays = await loanPayments(existing.id);
     const history = el('div', { class: 'list', style: 'margin:8px 0 0' });
     for (const o of pays) {
+      const sched = o.scheduledDate && o.scheduledDate !== o.date ? `по графику ${formatDate(o.scheduledDate)}` : '';
       history.append(el('a', { class: 'row', href: `#/operations/${o.id}` },
         avatar(existing.bank ?? existing.name, { small: true }),
-        el('div', { class: 'row-main' }, el('div', null, formatDate(o.date)), o.comment && o.comment !== existing.name ? el('div', { class: 'muted small' }, o.comment) : null),
+        el('div', { class: 'row-main' }, el('div', null, `оплачено ${formatDate(o.date)}`), sched ? el('div', { class: 'muted small' }, sched) : null),
         el('div', { class: 'row-amount expense' }, formatWhole(-o.amount, o.currency)),
       ));
     }
     root.append(el('div', { class: 'card' },
       el('div', { class: 'card-title' }, 'Платежи'),
       status.text ? el('p', { class: `small ${status.late ? 'warn' : ''}`, style: 'margin:0 0 8px' }, status.text) : null,
-      status.canPay ? el('a', { class: 'btn', style: 'width:100%', href: `#/operations/new?loan=${existing.id}` }, 'Оплачено') : null,
-      el('div', { class: 'field-label', style: 'margin-top:12px' }, 'История оплат'),
-      pays.length ? history : el('p', { class: 'muted small', style: 'margin:4px 0 0' }, 'Оплат пока нет.'),
+      status.canPay ? el('a', { class: 'btn', style: 'width:100%', href: `#/operations/new?loan=${existing.id}` }, 'Отметить оплату') : null,
+      pays.length
+        ? el('details', { style: 'margin-top:12px' }, el('summary', { class: 'small' }, `История оплат (${pays.length})`), history)
+        : el('p', { class: 'muted small', style: 'margin:12px 0 0' }, 'Оплат пока нет.'),
     ));
   }
   root.append(form);
@@ -181,9 +183,12 @@ export async function loanStatus(s) {
   const today = todayISO();
   const due = await loanDue(s);
   const [last] = await loanPayments(s.id);
-  const lastText = last ? `оплачено ${formatDate(last.date)} — ${formatWhole(last.amount, last.currency)}` : '';
+  const lastText = last ? `последняя оплата ${formatDate(last.date)} — ${formatWhole(last.amount, last.currency)}` : '';
   if (!due) return { text: lastText || 'платежей по графику больше нет', late: false, canPay: false };
   const late = due.date < today;
-  const dueText = late ? `просрочен ${diffDays(due.date, today)} дн. — платёж ${formatDate(due.date)}` : `следующий платёж ${formatDate(due.date)}`;
+  // В этом месяце (или раньше) — «ожидает оплаты»; дальше — «следующий платёж»
+  const dueText = late
+    ? `просрочен ${diffDays(due.date, today)} дн. — срок ${formatDate(due.date)}`
+    : due.date.slice(0, 7) <= today.slice(0, 7) ? `ожидает оплаты — срок ${formatDate(due.date)}` : `следующий платёж ${formatDate(due.date)}`;
   return { text: [dueText, lastText].filter(Boolean).join(' · '), late, canPay: true };
 }

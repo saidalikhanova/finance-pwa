@@ -66,7 +66,7 @@ export async function renderOperationForm(root, params) {
   const hint = loan
     ? el('div', { class: 'banner' },
         el('strong', null, `Оплата кредита: ${loan.name}`),
-        el('div', { class: 'small' }, loanDueInfo ? `Платёж по графику ${formatDate(loanDueInfo.date)} — ${formatMoney(loan.amount, loan.currency)}. Если заплатили другую сумму или в другой день — исправьте.` : 'По графику платежей больше нет.'))
+        el('div', { class: 'small' }, loanDueInfo ? `Платёж по графику ${formatDate(loanDueInfo.date)} — ${formatMoney(loan.amount, loan.currency)}. Ниже укажите, когда фактически заплатили (например, вчера), и сумму, если она отличалась.` : 'По графику платежей больше нет.'))
     : wish
     ? el('p', { class: 'muted small' }, `Покупка из списка желаний: «${wish.name}». Проверьте сумму и сохраните.`)
     : plannedPay
@@ -250,7 +250,7 @@ export async function renderOperationForm(root, params) {
   form.replaceChildren(
     field('Тип', typeToggle),
     field('Сумма', el('div', { class: 'amount-row' }, amountInput, currencyToggle), eurPreview),
-    field('Дата', dateInput),
+    field(loan || plannedPay?.recurringId ? 'Дата оплаты — когда фактически заплатили' : 'Дата', dateInput),
     rateField,
     el('label', { class: 'field' }, categoryLabelEl, categorySelect),
     itemsDetails,
@@ -327,6 +327,8 @@ export async function renderOperationForm(root, params) {
       rateSource: rate ? /** @type {const} */ ('manual') : null,
       // Связь с кредитом (или другим платежом по расписанию)
       recurringId: loan?.id ?? plannedPay?.recurringId ?? existing?.recurringId ?? null,
+      // Дата по графику — чтобы видеть, в срок ли оплачено
+      scheduledDate: loanDueInfo?.date ?? (plannedPay?.recurringId ? plannedPay.date : null) ?? existing?.scheduledDate ?? null,
     };
     try {
       if (existing) {

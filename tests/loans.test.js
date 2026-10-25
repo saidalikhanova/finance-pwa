@@ -118,7 +118,7 @@ test('кредит: «Оплачено» — заранее, в срок и пр
   const other = await createSchedule({ name: 'Кредит Halyk', bank: 'Halyk', type: 'expense', amount: 30000 * T, currency: 'KZT', categoryId: 'loans', period: 'monthly', startDate: '2026-11-05', confirm: true }, db);
   const pay = async (/** @type {any} */ s, /** @type {string} */ date) => {
     const due = await loanDue(s, db);
-    const op = await createOperation({ type: 'expense', amount: s.amount, currency: 'KZT', date, categoryId: 'loans', comment: s.name, rate: 5000000, recurringId: s.id }, db);
+    const op = await createOperation({ type: 'expense', amount: s.amount, currency: 'KZT', date, categoryId: 'loans', comment: s.name, rate: 5000000, recurringId: s.id, scheduledDate: due?.date }, db);
     await settleLoanPayment(s, /** @type {any} */ (due), { operationId: op.id, date, amount: s.amount }, db);
     return due;
   };
@@ -148,5 +148,6 @@ test('кредит: «Оплачено» — заранее, в срок и пр
 
   const history = await loanPayments(loan.id, db);
   assert.deepEqual(history.map((o) => o.date), ['2026-12-10', '2026-11-12'], 'история — только этого кредита, новые сверху');
+  assert.deepEqual(history.map((o) => o.scheduledDate), ['2026-12-15', '2026-11-15'], 'видна и дата по графику, и фактическая');
   db.close();
 });
