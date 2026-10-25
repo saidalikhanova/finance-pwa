@@ -11,7 +11,7 @@ import { limitStatus, pluralDays } from '../limits.js';
 import { listWishes, planWishes } from '../repo/wishes.js';
 import { suggestRate } from '../repo/rates.js';
 import { listSchedules } from '../repo/recurring.js';
-import { scheduledInMonth } from '../loans.js';
+import { scheduledInMonth, isLoanCategory } from '../loans.js';
 import { toEurCents } from '../money.js';
 
 // Месяц сохраняется между переходами, чтобы после правки строки
@@ -110,7 +110,8 @@ export async function renderBudget(root) {
         planIncome += (inheritedOnly ? 0 : effectivePlanEur(catLines, month, rate) ?? 0) + (exp.byCategory.get(c.id)?.planned ?? 0);
         factIncome += f;
       } else {
-        planExpense += line?.planned ?? scheduledEur(c.id);
+        // У «Кредитов» план — только платежи по графику
+        planExpense += isLoanCategory(c) ? scheduledEur(c.id) : line?.planned ?? scheduledEur(c.id);
         factExpense += f;
       }
     }
@@ -343,8 +344,9 @@ function totalRow(label, plan, fact, cls = '', signed = false) {
  */
 function expenseRow(c, line, fact, month, today, scheduled = '') {
   const name = c.archived ? `${c.name} (архив)` : c.name;
-  const limit = line?.limit ?? null;
-  const planned = line?.planned ?? null;
+  const loan = isLoanCategory(c);
+  const limit = loan ? null : line?.limit ?? null;
+  const planned = loan ? null : line?.planned ?? null;
 
   const main = el('div', { class: 'row-main' }, el('div', null, name));
   const amount = el('div', { class: 'row-amount' }, el('div', null, money(fact)));
@@ -352,7 +354,8 @@ function expenseRow(c, line, fact, month, today, scheduled = '') {
 
   const notes = [];
   if (planned != null) notes.push(`план ${money(planned)}`);
-  else if (scheduled) notes.push(`по графику ${scheduled}`);
+  else if (scheduled && !loan) notes.push(`по графику ${scheduled}`);
+  else if (scheduled) notes.push('по графику платежей');
 
   if (limit != null) {
     const s = limitStatus(limit, fact, month, today);
@@ -364,6 +367,8 @@ function expenseRow(c, line, fact, month, today, scheduled = '') {
       notes.push(`осталось ${money(s.remaining)}`);
       if (s.perDay != null) notes.push(`${money(s.perDay)} в день (${s.daysLeft} ${pluralDays(s.daysLeft)})`);
     }
+  } else if (loan) {
+    amount.append(el('div', { class: 'muted small' }, scheduled ? `из ${scheduled}` : 'кредитов нет'));
   } else {
     amount.append(el('div', { class: 'muted small' }, 'лимит не задан'));
   }

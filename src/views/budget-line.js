@@ -11,6 +11,7 @@ import { segmented } from './form-parts.js';
 import { listLoans, loanLeft } from '../repo/loans.js';
 import { loanStatus } from './loan-form.js';
 import { isLoanCategory, scheduledInMonth } from '../loans.js';
+import { money, loadDisplay } from '../display.js';
 import { formatWhole } from '../money.js';
 
 /**
@@ -117,12 +118,25 @@ export async function renderBudgetLine(root, params) {
       ? el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`)
       : el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRemove }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`),
   );
-  // Категория «Кредиты»: список кредитов и платежи этого месяца — над планом
+  // Категория «Кредиты»: план — это платежи по графику, лимит не нужен.
+  // Вместо полей плана и лимита — кредиты, оплачено за месяц и операции.
   if (isLoanCategory(category)) {
-    root.append(await loansCard(categoryId, month));
-  } else {
-    plannedInput.focus();
+    await loadDisplay();
+    const title = document.getElementById('page-title');
+    if (title) title.textContent = category.name;
+    root.append(
+      await loansCard(categoryId, month),
+      el('div', { class: 'card' },
+        el('div', { class: 'muted small' }, `${category.name} · ${formatMonth(month)}`),
+        el('div', null, `Оплачено за месяц: ${money(fact)}`),
+        el('p', { class: 'muted small', style: 'margin:6px 0 0' }, 'План по кредитам считается сам — по графику платежей. Лимит для кредитов не нужен.'),
+      ),
+      el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, 'Все оплаты за месяц'),
+    );
+    if (line?.hidden) root.append(el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`));
+    return;
   }
+  plannedInput.focus();
   root.append(form);
 
   async function onRemove() {
