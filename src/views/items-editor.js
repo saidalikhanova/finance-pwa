@@ -1,4 +1,5 @@
 import { el } from '../ui.js';
+import { categoryOptions } from './form-parts.js';
 import { formatMoney, parseAmount, amountToInput } from '../money.js';
 import { UNITS, parseQty, formatQty, lineSum, itemsTotal } from '../items.js';
 
@@ -59,7 +60,7 @@ export function itemsEditor(initial, opts) {
     const cat = el('select', { class: `select${it.categoryId ? '' : ' select-missing'}`, 'aria-label': 'Категория', onchange: () => {
       it.categoryId = cat.value;
       cat.classList.toggle('select-missing', !cat.value);
-    } }, el('option', { value: '' }, 'Категория…'), ...expenseCats.filter((c) => !c.archived || c.id === it.categoryId).map((c) => el('option', { value: c.id }, c.name)));
+    } }, el('option', { value: '' }, 'Категория…'), ...categoryOptions(expenseCats, 'expense', it.categoryId));
     cat.value = it.categoryId;
     const del = el('button', { class: 'link-btn', type: 'button', 'aria-label': 'Удалить позицию', onclick: () => {
       items.splice(i, 1);

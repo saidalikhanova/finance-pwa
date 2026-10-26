@@ -149,7 +149,7 @@ export const MIGRATIONS = [
         const expense = rows.filter((c) => c.kind === 'expense');
         if (expense.some((c) => c.name.toLowerCase() === 'кредиты')) return;
         const order = expense.reduce((m, c) => Math.max(m, c.order), -1) + 1;
-        cats.add({ id: crypto.randomUUID(), name: 'Кредиты', kind: 'expense', archived: false, order, createdAt: new Date().toISOString(), employer: '', payDay: null, payNextMonth: false });
+        cats.add({ id: crypto.randomUUID(), name: 'Кредиты', kind: 'expense', archived: false, order, createdAt: new Date().toISOString(), employer: '', payDay: null, payNextMonth: false, parentId: null });
       };
     },
   },
@@ -165,6 +165,22 @@ export const MIGRATIONS = [
         // запись до изменений миграции 11 — поэтому поле «банк» тоже заполняется здесь
         const v = cur.value;
         if (v.principal === undefined || v.bank === undefined) cur.update({ ...v, bank: v.bank ?? null, principal: v.principal ?? null });
+        cur.continue();
+      };
+    },
+  },
+  {
+    version: 13,
+    upgrade(_db, tx) {
+      // Статьи внутри категорий: у категории — ссылка на родителя (у всех существующих — нет).
+      // Поля прежних шагов заполняются здесь же: курсор одного обновления может прочитать
+      // запись до их изменений.
+      const req = tx.objectStore('categories').openCursor();
+      req.onsuccess = () => {
+        const cur = req.result;
+        if (!cur) return;
+        const v = cur.value;
+        if (v.parentId === undefined) cur.update({ ...v, parentId: null, employer: v.employer ?? '', payDay: v.payDay ?? null, payNextMonth: v.payNextMonth ?? false });
         cur.continue();
       };
     },

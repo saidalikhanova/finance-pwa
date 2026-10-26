@@ -1,6 +1,6 @@
 import { el, toast, confirmDialog, formatDate, formatMonth } from '../ui.js';
 import { parseAmount, amountToInput, formatMoney } from '../money.js';
-import { navigate } from '../router.js';
+import { navigate, goBack } from '../router.js';
 import { listCategories } from '../repo/categories.js';
 import { createPlanned, updatePlanned, getPlanned, deletePlanned, moveToNextMonth } from '../repo/planned.js';
 import { todayISO } from '../repo/operations.js';
@@ -20,6 +20,8 @@ export async function renderPlannedForm(root, params) {
     return;
   }
   const backTo = params.from === 'budget' ? '/budget' : '/payments';
+  // Со статьи бюджета — назад на неё
+  const leave = () => (params.from === 'article' ? goBack() : navigate(backTo));
   // Заголовок и «Назад» зависят от того, доход это или платёж и откуда пришли
   const setHeader = (/** @type {string} */ type) => {
     const t = type === 'income' ? 'Ожидаемый доход' : 'Разовый платёж';
@@ -53,14 +55,14 @@ export async function renderPlannedForm(root, params) {
         el('button', { class: 'btn btn-secondary btn-small', type: 'button', onclick: async () => {
           await moveToNextMonth(existing.id);
           toast('Перенесено на следующий месяц');
-          navigate(backTo);
+          leave();
         } }, 'На след. месяц'),
       ));
     }
     root.append(card);
   }
 
-  const nameInput = el('input', { class: 'input', value: existing?.name ?? '', placeholder: initialType === 'income' ? 'Тренинг, проект, зарплата…' : 'Страховка, кружок…', maxlength: 80 });
+  const nameInput = el('input', { class: 'input', value: existing?.name ?? params.name ?? '', placeholder: initialType === 'income' ? 'Тренинг, проект, зарплата…' : 'Страховка, кружок…', maxlength: 80 });
   const typeInput = el('input', { type: 'hidden', value: initialType });
   const typeToggle = segmented([['expense', 'Расход'], ['income', 'Доход']], typeInput.value, (v) => {
     typeInput.value = v;
@@ -122,7 +124,7 @@ export async function renderPlannedForm(root, params) {
       if (!(await confirmDialog(`Удалить «${existing.name}»?${existing.done ? ' Записанная операция останется.' : ''}`))) return;
       await deletePlanned(existing.id);
       toast('Удалено');
-      navigate(backTo);
+      leave();
     } }, 'Удалить'));
   }
   root.append(form);
@@ -149,7 +151,7 @@ export async function renderPlannedForm(root, params) {
       if (existing) await updatePlanned(existing.id, data);
       else await createPlanned(data);
       toast('Сохранено');
-      navigate(backTo);
+      leave();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось сохранить', { error: true });
     }

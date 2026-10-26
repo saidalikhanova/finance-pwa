@@ -20,7 +20,8 @@ import {
   todayISO,
 } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
-import { categoryLabel } from './form-parts.js';
+import { categoryLabel, categoryOptions } from './form-parts.js';
+import { showLimitMessages } from './limit-check.js';
 
 /**
  * Форма создания и редактирования операции.
@@ -65,7 +66,7 @@ export async function renderOperationForm(root, params) {
   const form = el('form', { class: 'form', novalidate: true, onsubmit: onSubmit });
   const hint = loan
     ? el('div', { class: 'banner' },
-        el('strong', null, `Оплата кредита: ${loan.name}`),
+        el('strong', null, loan.bank ? `Оплата кредита: ${loan.name}` : `Оплата: ${loan.name}`),
         el('div', { class: 'small' }, loanDueInfo ? `Платёж по графику ${formatDate(loanDueInfo.date)} — ${formatMoney(loan.amount, loan.currency)}. Ниже укажите, когда фактически заплатили (например, вчера), и сумму, если она отличалась.` : 'По графику платежей больше нет.'))
     : wish
     ? el('p', { class: 'muted small' }, `Покупка из списка желаний: «${wish.name}». Проверьте сумму и сохраните.`)
@@ -176,11 +177,7 @@ export async function renderOperationForm(root, params) {
     categorySelect.innerHTML = '';
     categorySelect.append(el('option', { value: '', disabled: true, selected: true }, kind === 'income' ? 'Выберите источник' : 'Выберите категорию'));
     categoryLabelEl.textContent = categoryLabel(kind);
-    for (const c of allCategories) {
-      if (c.kind !== kind) continue;
-      if (c.archived && c.id !== current) continue;
-      categorySelect.append(el('option', { value: c.id }, c.archived ? `${c.name} (архив)` : c.name));
-    }
+    categorySelect.append(...categoryOptions(allCategories, kind, current));
     if (current && [...categorySelect.options].some((o) => o.value === current)) categorySelect.value = current;
   }
   fillCategories();
@@ -340,6 +337,7 @@ export async function renderOperationForm(root, params) {
         if (loan && loanDueInfo) {
           await settleLoanPayment(loan, loanDueInfo, { operationId: op.id, date: data.date, amount: data.amount });
           toast(`Оплата записана: ${loan.name}`);
+          // Платёж в статье или кредит — вернуться туда, откуда пришли
           goBack();
           return;
         }
@@ -355,19 +353,8 @@ export async function renderOperationForm(root, params) {
       if (data.type === 'expense') {
         const month = data.date.slice(0, 7);
         const catIds = [...new Set(items.length ? items.map((it) => it.categoryId) : [data.categoryId])];
-        const spentBy = await sumByCategory(month);
-        const messages = [];
-        let over = false;
-        for (const catId of catIds) {
-          const line = await getBudgetLine(month, catId);
-          if (line?.limit == null) continue;
-          const category = allCategories.find((c) => c.id === catId);
-          const status = limitStatus(line.limit, spentBy.get(catId) ?? 0, month, todayISO());
-          messages.push(limitMessage(category?.name ?? 'Категория', status));
-          if (status.level === 'over') over = true;
-        }
-        if (messages.length) {
-          toast(messages.join('\n'), { ms: 6000 + 2000 * (messages.length - 1), error: over });
+        // Лимиты статьи и её категории (у категории — вместе со статьями)
+        if (await showLimitMessages(month, catIds, allCategories, todayISO())) {
           navigate('/operations');
           return;
         }

@@ -37,9 +37,9 @@ export function normalizeSchedule(input) {
     endType,
     endDate: endType === 'date' ? /** @type {string} */ (input.endDate) : null,
     count: endType === 'count' ? /** @type {number} */ (input.count) : null,
-    // Не записывать сразу, а ждать подтверждения: для доходов («Получено»)
-    // и для платежей по кредиту («Оплачено»); у прочих расходов — нет
-    confirm: Boolean(input.confirm) && (input.type === 'income' || Boolean(input.bank?.trim())),
+    // Не записывать сразу, а ждать подтверждения: «Получено» у доходов,
+    // «Отметить оплату» у расходов (кредиты, страховки и др.)
+    confirm: Boolean(input.confirm),
     bank: input.bank?.trim() || null,
     principal: input.bank?.trim() ? principal : null,
   };

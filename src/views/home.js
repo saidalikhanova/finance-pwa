@@ -15,6 +15,7 @@ import { listOperations, monthRange, sumByCategory, todayISO } from '../repo/ope
 import { getBudget } from '../repo/budgets.js';
 import { listCategories } from '../repo/categories.js';
 import { summary, expensesByCategory } from '../reports.js';
+import { rollup } from '../category-tree.js';
 import { donut } from './donut.js';
 import { emptyState } from '../ui.js';
 import { limitStatus } from '../limits.js';
@@ -42,7 +43,8 @@ export async function renderHome(root) {
   // Сводка месяца: расходы, доходы, баланс и использование лимитов
   const [monthOps, budget, categories] = await Promise.all([listOperations(monthRange(month)), getBudget(month), listCategories({ includeArchived: true })]);
   const s = summary(monthOps);
-  const spentBy = await sumByCategory(month, db);
+  // У категории расходы — вместе со статьями (лимит категории — на всё)
+  const spentBy = rollup(await sumByCategory(month, db), categories);
   let limitTotal = 0;
   let limitSpent = 0;
   let limitOver = 0;

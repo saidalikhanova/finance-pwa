@@ -4,6 +4,7 @@ import { listSchedules, setScheduleStatus, deleteSchedule } from '../repo/recurr
 import { listPlanned, deletePlanned } from '../repo/planned.js';
 import { listUpcoming } from '../repo/upcoming.js';
 import { listCategories } from '../repo/categories.js';
+import { fullName } from '../category-tree.js';
 import { todayISO } from '../repo/operations.js';
 import { nextOccurrence, remaining, PERIOD_LABEL } from '../recurring.js';
 import { addDays } from '../dates.js';
@@ -19,7 +20,7 @@ export async function renderPayments(root) {
   async function refresh() {
     const today = todayISO();
     const [schedules, planned, categories] = await Promise.all([listSchedules(), listPlanned({ from: today }), listCategories({ includeArchived: true })]);
-    const catName = (/** @type {string} */ id) => categories.find((c) => c.id === id)?.name ?? 'Без категории';
+    const catName = (/** @type {string} */ id) => fullName(categories.find((c) => c.id === id), new Map(categories.map((c) => [c.id, c])));
     body.innerHTML = '';
 
     body.append(

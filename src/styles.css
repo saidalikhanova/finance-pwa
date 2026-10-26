@@ -458,3 +458,17 @@ details[hidden] { display: none; }
 .cal-selected .cal-dot-out, .cal-selected .cal-dot-in { background: var(--accent-text); }
 .cal-legend { display: inline-block; position: static; margin: 0 2px 1px 0; vertical-align: middle; }
 .cal-total { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
+
+/* Выбор статьи после категории */
+.chips-sub { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); align-items: center; }
+.chips-sub[hidden] { display: none; }
+.chips-sub-label { margin-right: 2px; }
+.chip-small { padding: 6px 10px; font-size: 14px; }
+
+/* Статья под своей категорией в бюджете */
+.row-article { padding-left: 40px; background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
+.row-article .row-main > div:first-child { font-size: 15px; }
+.cat-row-nested { padding-left: 28px; }
+.cat-row-nested .cat-name { font-size: 15px; }
+.cat-row .link-btn { white-space: nowrap; flex-shrink: 0; font-size: 14px; padding-left: 2px; padding-right: 2px; }
+.cat-row .cat-name { min-width: 0; hyphens: auto; }

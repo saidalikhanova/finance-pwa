@@ -2,6 +2,8 @@ import { el, avatar, emptyState, formatDate, formatMonth, shiftMonth, currentMon
 import { formatMoney, formatRate } from '../money.js';
 import { listOperations, monthRange } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
+import { withChildren, fullName } from '../category-tree.js';
+import { categoryOptions } from './form-parts.js';
 
 // Фильтры сохраняются между переходами, чтобы после редактирования
 // операции список открылся в том же месяце.
@@ -34,9 +36,8 @@ export async function renderOperations(root, params = {}) {
     'select',
     { class: 'select', 'aria-label': 'Категория', onchange: onFilterChange },
     el('option', { value: '' }, 'Все категории'),
-    ...categories
-      .filter((c) => !c.archived || c.id === state.categoryId)
-      .map((c) => el('option', { value: c.id }, c.archived ? `${c.name} (архив)` : c.name)),
+    ...categoryOptions(categories, 'expense', state.categoryId),
+    ...categoryOptions(categories, 'income', state.categoryId),
   );
   typeSelect.value = state.type;
   catSelect.value = state.categoryId;
@@ -76,7 +77,7 @@ export async function renderOperations(root, params = {}) {
     const ops = await listOperations({
       ...monthRange(state.month),
       type: state.type || undefined,
-      categoryId: state.categoryId || undefined,
+      categoryIds: state.categoryId ? withChildren(categories, state.categoryId) : undefined,
     });
     list.innerHTML = '';
 
@@ -117,9 +118,9 @@ export async function renderOperations(root, params = {}) {
       }
       const cat = byId.get(o.categoryId);
       const n = o.items?.length ?? 0;
-      const catName = cat?.name ?? 'Без категории';
+      const catName = fullName(cat, byId);
       const title = n ? `${o.store || catName} · ${n} поз.` : o.store ? `${catName} · ${o.store}` : catName;
-      const subParts = [n ? [...new Set(o.items.map((it) => byId.get(it.categoryId)?.name))].filter(Boolean).join(', ') : '', o.comment !== o.store ? o.comment : '', o.photoId ? '📷' : ''].filter(Boolean);
+      const subParts = [n ? [...new Set(o.items.map((it) => (byId.get(it.categoryId) ? fullName(byId.get(it.categoryId), byId) : '')))].filter(Boolean).join(', ') : '', o.comment !== o.store ? o.comment : '', o.photoId ? '📷' : ''].filter(Boolean);
       const amount = formatMoney(o.type === 'expense' ? -o.amount : o.amount, o.currency, { sign: true });
       const eur =
         o.currency === 'KZT'

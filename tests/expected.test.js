@@ -83,11 +83,11 @@ test('ожидаемый доход (база): месячные не попад
 test('зарплата «ждать подтверждения»: создаётся ожидаемое поступление, а не операция', async () => {
   const db = await fresh();
   await createSchedule({ name: 'Зарплата', type: 'income', amount: 180000, currency: 'EUR', categoryId: 'salary', period: 'monthly', startDate: '2026-09-05', confirm: true }, db);
-  await createSchedule({ name: 'Аренда', type: 'expense', amount: 90000, currency: 'EUR', categoryId: 'rent', period: 'monthly', startDate: '2026-09-01', confirm: true }, db);
+  await createSchedule({ name: 'Аренда', type: 'expense', amount: 90000, currency: 'EUR', categoryId: 'rent', period: 'monthly', startDate: '2026-09-01' }, db);
   assert.equal(await generateDue('2026-10-18', db), 4, 'зарплата за сентябрь и октябрь + аренда за 2 месяца');
 
   const ops = await listOperations({}, db);
-  assert.deepEqual(ops.map((o) => o.type), ['expense', 'expense'], 'для расходов подтверждение не действует');
+  assert.deepEqual(ops.map((o) => o.type), ['expense', 'expense'], 'расход без подтверждения записывается сам');
   const pending = await listPlanned({ type: 'income' }, db);
   assert.deepEqual(pending.map((x) => x.date), ['2026-09-05', '2026-10-05']);
   assert.ok(pending.every((x) => x.recurringId), 'связаны с расписанием');

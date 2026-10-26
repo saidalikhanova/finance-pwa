@@ -8,6 +8,8 @@ import { limitStatus, limitMessage } from '../limits.js';
 import { saveRate } from '../repo/rates.js';
 import { currencyControls } from './currency-input.js';
 import { segmented } from './form-parts.js';
+import { categoryChips } from './category-chips.js';
+import { showLimitMessages } from './limit-check.js';
 
 /**
  * Быстрый экран добавления (по кнопке «+»): расход или доход, сумма крупно,
@@ -30,21 +32,21 @@ export async function renderQuickAdd(root, params = {}) {
   money.toggle.addEventListener('click', () => (currencySign.textContent = money.currency === 'KZT' ? '₸' : '€'));
   dateInput.addEventListener('change', () => money.refreshSuggestion());
 
-  const chips = el('div', { class: 'chips' });
+  const chips = el('div');
   const hint = el('p', { class: 'muted small', style: 'text-align:center' });
+  /** @type {string} */
+  let selectedLabel = '';
   function fillChips() {
-    chips.innerHTML = '';
     selected = null;
     hint.textContent = type === 'income' ? 'Выберите источник дохода' : 'Выберите категорию';
-    for (const c of all.filter((c) => c.kind === type)) {
-      const chip = el('button', { type: 'button', class: 'chip', onclick: () => {
-        selected = c;
-        chips.querySelectorAll('.chip').forEach((x) => x.classList.toggle('active', x === chip));
-        hint.textContent = c.name;
-      } }, avatar(c.name, { small: true, income: type === 'income' }), c.name);
-      chips.append(chip);
-      if (params.category === c.id) chip.click();
-    }
+    // Категория, затем — статья внутри неё (если есть)
+    const picker = categoryChips({ categories: all, kind: type, onSelect: (c, label) => {
+      selected = c;
+      selectedLabel = label;
+      hint.textContent = label;
+    } });
+    chips.replaceChildren(picker.el);
+    if (params.category) picker.select(params.category);
   }
   const typeToggle = segmented([['expense', 'Расход'], ['income', 'Доход']], type, (v) => {
     type = /** @type {'expense' | 'income'} */ (v);
@@ -104,14 +106,8 @@ export async function renderQuickAdd(root, params = {}) {
     await createOperation({ type, amount, currency: money.currency, date, categoryId: selected.id, comment: '', rate, rateSource: rate ? 'manual' : null });
     if (rate) await saveRate(date, rate);
     const month = date.slice(0, 7);
-    const line = type === 'expense' ? await getBudgetLine(month, selected.id) : null;
-    if (line?.limit != null) {
-      const spent = (await sumByCategory(month)).get(selected.id) ?? 0;
-      const s = limitStatus(line.limit, spent, month, todayISO());
-      toast(limitMessage(selected.name, s), { ms: 6000, error: s.level === 'over' });
-    } else {
-      toast(type === 'income' ? 'Доход записан' : 'Расход сохранён');
-    }
+    const shown = type === 'expense' && (await showLimitMessages(month, [selected.id], all, todayISO()));
+    if (!shown) toast(type === 'income' ? 'Доход записан' : `Расход сохранён: ${selectedLabel}`);
     navigate(type === 'income' ? '/budget' : '/operations');
   }
 }

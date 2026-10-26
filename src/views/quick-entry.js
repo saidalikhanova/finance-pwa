@@ -6,6 +6,8 @@ import { getBudgetLine } from '../repo/budgets.js';
 import { limitStatus, limitMessage } from '../limits.js';
 import { saveRate } from '../repo/rates.js';
 import { currencyControls } from './currency-input.js';
+import { categoryChips } from './category-chips.js';
+import { showLimitMessages } from './limit-check.js';
 
 /**
  * Быстрый ввод расхода с главного экрана: категория → сумма → сохранить.
@@ -25,17 +27,17 @@ export async function quickEntry(onSaved) {
   /** @type {import('../repo/categories.js').Category | null} */
   let selected = null;
 
-  for (const c of categories) {
-    const chip = el('button', { type: 'button', class: 'chip', onclick: () => {
-      selected = c;
-      chips.querySelectorAll('.chip').forEach((x) => x.classList.toggle('active', x === chip));
-      form.hidden = false;
-      amountInput.focus();
-      hint.textContent = `${c.name}: сумма, дата — сегодня.`;
-      money.refreshSuggestion();
-    } }, avatar(c.name, { small: true }), c.name);
-    chips.append(chip);
-  }
+  /** @type {string} */
+  let selectedLabel = '';
+  // Категория, затем — статья внутри неё (если есть)
+  const picker = categoryChips({ categories, kind: 'expense', onSelect: (c, label) => {
+    selected = c;
+    selectedLabel = label;
+    form.hidden = false;
+    hint.textContent = `${label}: сумма, дата — сегодня.`;
+    money.refreshSuggestion();
+  } });
+  chips.append(picker.el);
 
   /** @param {Event} e */
   async function save(e) {
@@ -55,18 +57,12 @@ export async function quickEntry(onSaved) {
     await createOperation({ type: 'expense', amount, currency: money.currency, date, categoryId: selected.id, comment: '', rate, rateSource: rate ? 'manual' : null });
     if (rate) await saveRate(date, rate);
     const month = date.slice(0, 7);
-    const line = await getBudgetLine(month, selected.id);
-    if (line?.limit != null) {
-      const spent = (await sumByCategory(month)).get(selected.id) ?? 0;
-      const s = limitStatus(line.limit, spent, month, date);
-      toast(limitMessage(selected.name, s), { ms: 6000, error: s.level === 'over' });
-    } else {
-      toast(`${selected.name}: записано ${amountInput.value.trim()} ${money.currency === 'KZT' ? '₸' : '€'}`);
-    }
+    const shown = await showLimitMessages(month, [selected.id], categories, date);
+    if (!shown) toast(`${selectedLabel}: записано ${amountInput.value.trim()} ${money.currency === 'KZT' ? '₸' : '€'}`);
     amountInput.value = '';
     form.hidden = true;
     selected = null;
-    chips.querySelectorAll('.chip').forEach((x) => x.classList.remove('active'));
+    picker.clear();
     hint.textContent = 'Выберите категорию, введите сумму — расход запишется сегодняшним днём.';
     onSaved?.();
   }

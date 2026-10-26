@@ -1,6 +1,6 @@
 import { el, toast } from '../ui.js';
 import { parseAmount, amountToInput } from '../money.js';
-import { navigate } from '../router.js';
+import { navigate, goBack } from '../router.js';
 import { listCategories } from '../repo/categories.js';
 import { createSchedule, updateSchedule, getSchedule } from '../repo/recurring.js';
 import { todayISO } from '../repo/operations.js';
@@ -23,22 +23,26 @@ export async function renderPaymentForm(root, params) {
   if (existing?.bank) return renderLoanForm(root, params);
   const categories = await listCategories({ includeArchived: true });
 
-  const nameInput = el('input', { class: 'input', value: existing?.name ?? '', placeholder: 'Аренда, подписка, кредит…', maxlength: 80 });
+  const nameInput = el('input', { class: 'input', value: existing?.name ?? params.name ?? '', placeholder: 'Аренда, подписка, страховка…', maxlength: 80 });
   const typeInput = el('input', { type: 'hidden', value: existing?.type ?? 'expense' });
   const typeToggle = segmented([['expense', 'Расход'], ['income', 'Доход']], typeInput.value, (v) => {
     typeInput.value = v;
     categorySelect.fill(v);
-    confirmField.hidden = v !== 'income';
+    confirmHint.textContent = confirmText(v);
   });
-  const confirmBox = /** @type {HTMLInputElement} */ (el('input', { type: 'checkbox', checked: Boolean(existing?.confirm) }));
-  const confirmField = el('label', { class: 'cat-row field', hidden: typeInput.value !== 'income' },
+  const confirmText = (/** @type {string} */ t) => (t === 'income'
+    ? 'Для дохода, который приходит не точно в срок: каждый период появится как «ожидается», а в факт попадёт, когда вы нажмёте «Получено».'
+    : 'В день платежа расход не записывается сам: платёж ждёт «Отметить оплату» — с фактической датой и суммой (например, страховка).');
+  const confirmBox = /** @type {HTMLInputElement} */ (el('input', { type: 'checkbox', checked: existing ? Boolean(existing.confirm) : params.confirm === '1' }));
+  const confirmHint = el('div', { class: 'muted small' }, confirmText(typeInput.value));
+  const confirmField = el('label', { class: 'cat-row field' },
     confirmBox,
-    el('span', { class: 'cat-name' }, 'Ждать подтверждения', el('div', { class: 'muted small' }, 'Для дохода, который приходит не точно в срок: каждый период появится как «ожидается», а в факт попадёт, когда вы нажмёте «Получено».')),
+    el('span', { class: 'cat-name' }, 'Ждать подтверждения', confirmHint),
   );
   const amountInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,00', value: existing ? amountToInput(existing.amount) : '' });
   const currencyInput = el('input', { type: 'hidden', value: existing?.currency ?? 'EUR' });
   const currencyToggle = segmented([['EUR', '€'], ['KZT', '₸']], currencyInput.value, (v) => (currencyInput.value = v));
-  const categorySelect = categorySelectFor(categories, existing?.categoryId);
+  const categorySelect = categorySelectFor(categories, existing?.categoryId ?? params.category);
   categorySelect.fill(typeInput.value);
 
   const periodSelect = el('select', { class: 'select', onchange: updateVisibility }, ...Object.entries(PERIOD_LABEL).map(([v, l]) => el('option', { value: v }, l)));
@@ -111,8 +115,12 @@ export async function renderPaymentForm(root, params) {
     try {
       if (existing) await updateSchedule(existing.id, data);
       else await createSchedule(data);
-      toast(existing ? 'Платёж изменён' : 'Платёж сохранён. Операции будут создаваться по расписанию.');
-      navigate('/payments');
+      toast(existing ? 'Платёж изменён' : data.confirm
+        ? 'Платёж сохранён. В срок он появится в календаре — отметьте оплату, когда заплатите.'
+        : 'Платёж сохранён. Операции будут создаваться по расписанию.');
+      // Пришли со статьи бюджета — туда и возвращаемся
+      if (params.category) goBack();
+      else navigate('/payments');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось сохранить', { error: true });
     }

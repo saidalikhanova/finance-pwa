@@ -25,17 +25,27 @@ export function summary(ops) {
 
 /**
  * Расходы по категориям, по убыванию суммы, с долей в процентах.
+ * Статьи считаются в своей категории; их разбивка — в articles.
  * @param {Operation[]} ops
- * @param {Map<string, { name: string }>} categoriesById
- * @returns {{ categoryId: string, name: string, amount: number, share: number }[]}
+ * @param {Map<string, { name: string, parentId?: string | null }>} categoriesById
+ * @returns {{ categoryId: string, name: string, amount: number, share: number, articles: { categoryId: string, name: string, amount: number }[] }[]}
  */
 export function expensesByCategory(ops, categoriesById) {
   /** @type {Map<string, number>} */
   const totals = new Map();
+  /** @type {Map<string, Map<string, number>>} */
+  const byArticle = new Map();
   for (const o of ops) {
     if (o.type !== 'expense') continue;
     for (const [categoryId, eur] of categoryAmountsEur(o)) {
-      totals.set(categoryId, (totals.get(categoryId) ?? 0) + eur);
+      const parentId = categoriesById.get(categoryId)?.parentId;
+      const top = parentId && categoriesById.has(parentId) ? parentId : categoryId;
+      totals.set(top, (totals.get(top) ?? 0) + eur);
+      if (top !== categoryId) {
+        const m = byArticle.get(top) ?? new Map();
+        m.set(categoryId, (m.get(categoryId) ?? 0) + eur);
+        byArticle.set(top, m);
+      }
     }
   }
   const total = [...totals.values()].reduce((a, b) => a + b, 0);
@@ -45,6 +55,9 @@ export function expensesByCategory(ops, categoriesById) {
       name: categoriesById.get(categoryId)?.name ?? 'Без категории',
       amount,
       share: total ? divRound(amount * 100, total) : 0,
+      articles: [...(byArticle.get(categoryId) ?? new Map())]
+        .map(([id, a]) => ({ categoryId: id, name: categoriesById.get(id)?.name ?? '', amount: a }))
+        .sort((x, y) => y.amount - x.amount),
     }))
     .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, 'ru'));
 }

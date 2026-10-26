@@ -139,6 +139,7 @@ export async function getOperation(id, db) {
  * @property {string} [to] — ГГГГ-ММ-ДД включительно
  * @property {OperationType} [type]
  * @property {string} [categoryId]
+ * @property {string[]} [categoryIds] — любая из категорий (категория и её статьи)
  */
 
 /**
@@ -158,6 +159,11 @@ export async function listOperations(filter = {}, db) {
   let rows = await getAll(d, 'operations', { index: 'date', query });
   if (filter.type) rows = rows.filter((o) => o.type === filter.type);
   if (filter.categoryId) rows = rows.filter((o) => o.categoryId === filter.categoryId);
+  // Категория вместе со статьями (и покупки, где есть позиции этих категорий)
+  if (filter.categoryIds) {
+    const set = new Set(filter.categoryIds);
+    rows = rows.filter((o) => set.has(o.categoryId) || o.items?.some((it) => set.has(it.categoryId)));
+  }
   return rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt.localeCompare(a.createdAt)));
 }
 

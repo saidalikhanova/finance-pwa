@@ -1,6 +1,7 @@
 // Общие части форм: поле с подписью, переключатель, выбор категории.
 
 import { el } from '../ui.js';
+import { ordered, fullName } from '../category-tree.js';
 
 /**
  * @param {string} label
@@ -8,6 +9,20 @@ import { el } from '../ui.js';
  */
 export function field(label, ...controls) {
   return el('label', { class: 'field' }, el('span', { class: 'field-label' }, label), ...controls.filter(Boolean));
+}
+
+/**
+ * Пункты списка категорий: категория, под ней её статьи («Здоровье › Аптека»).
+ * @param {import('../repo/categories.js').Category[]} categories
+ * @param {string} kind
+ * @param {string | null | undefined} [current] — показать, даже если в архиве
+ */
+export function categoryOptions(categories, kind, current) {
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  return ordered(categories, { kind, keep: current ?? null }).map(({ c, depth }) => {
+    const label = depth ? fullName(c, byId) : c.name;
+    return el('option', { value: c.id }, c.archived ? `${label} (архив)` : label);
+  });
 }
 
 /**
@@ -51,11 +66,7 @@ export function categorySelectFor(categories, current) {
     fill(kind) {
       select.innerHTML = '';
       select.append(el('option', { value: '', disabled: true, selected: true }, kind === 'income' ? 'Выберите источник' : 'Выберите категорию'));
-      for (const c of categories) {
-        if (c.kind !== kind) continue;
-        if (c.archived && c.id !== current) continue;
-        select.append(el('option', { value: c.id }, c.archived ? `${c.name} (архив)` : c.name));
-      }
+      select.append(...categoryOptions(categories, kind, current));
       if (current && [...select.options].some((o) => o.value === current)) select.value = current;
     },
   };

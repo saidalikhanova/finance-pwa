@@ -2,6 +2,7 @@ import { el, emptyState, formatDate } from '../ui.js';
 import { formatMoney, toEurCents } from '../money.js';
 import { listWishes, WISH_STATUS_LABEL, PRIORITY_LABEL, PRIORITY_ORDER } from '../repo/wishes.js';
 import { listCategories } from '../repo/categories.js';
+import { fullName } from '../category-tree.js';
 import { suggestRate } from '../repo/rates.js';
 import { todayISO } from '../repo/operations.js';
 import { getPhoto } from '../photos.js';
@@ -43,7 +44,7 @@ export async function renderWishes(root) {
     'select',
     { class: 'select', 'aria-label': 'Категория', onchange: () => ((state.categoryId = catSelect.value), refresh()) },
     el('option', { value: '' }, 'Все категории'),
-    ...categories.filter((c) => usedCats.includes(c.id)).map((c) => el('option', { value: c.id }, c.name)),
+    ...categories.filter((c) => usedCats.includes(c.id)).map((c) => el('option', { value: c.id }, fullName(c, new Map(categories.map((x) => [x.id, x]))))),
   );
   catSelect.value = state.categoryId;
 

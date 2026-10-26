@@ -35,19 +35,21 @@ test('банки: справочник — добавить, без дублей
   db.close();
 });
 
-test('кредит: «Оплачено» вместо автозаписи; у обычных расходов подтверждения нет', async () => {
+test('с подтверждением (кредит, страховка) — ждут «Отметить оплату»; без него — записываются сами', async () => {
   const db = await fresh();
   const loan = await createSchedule({ name: 'Кредит Kaspi', bank: 'Kaspi', type: 'expense', amount: 45000 * T, currency: 'KZT', categoryId: 'loans', period: 'monthly', startDate: '2026-10-15', endType: 'count', count: 3, confirm: true }, db);
   const rent = await createSchedule({ name: 'Аренда', type: 'expense', amount: 900_00, currency: 'EUR', categoryId: 'rent', period: 'monthly', startDate: '2026-10-01', confirm: true }, db);
+  const auto = await createSchedule({ name: 'Интернет', type: 'expense', amount: 10_00, currency: 'EUR', categoryId: 'net', period: 'monthly', startDate: '2026-10-01' }, db);
+  assert.equal(auto.confirm, false);
   assert.equal(loan.confirm, true);
   assert.equal(loan.bank, 'Kaspi');
-  assert.equal(rent.confirm, false, 'без банка подтверждение у расхода не действует');
+  assert.equal(rent.confirm, true, 'подтверждение — и у обычного расхода, если его попросили (страховка и т. п.)');
   assert.equal(rent.bank, null);
   await generateDue('2026-11-20', db);
   const ops = await listOperations({}, db);
-  assert.deepEqual(ops.map((o) => o.comment), ['Аренда', 'Аренда'], 'кредит сам в расходы не попадает');
+  assert.deepEqual(ops.map((o) => o.comment), ['Интернет', 'Интернет'], 'с подтверждением (кредит, аренда) сами в расходы не попадают');
   const toPay = await listPlanned({ type: 'expense' }, db);
-  assert.deepEqual(toPay.map((p) => p.date), ['2026-10-15', '2026-11-15'], 'платежи по кредиту ждут «Оплачено»');
+  assert.deepEqual(toPay.filter((p) => p.recurringId === loan.id).map((p) => p.date), ['2026-10-15', '2026-11-15'], 'платежи по кредиту ждут «Оплачено»');
   db.close();
 });
 

@@ -2,6 +2,7 @@ import { el, toast, formatDate } from '../ui.js';
 import { formatMoney } from '../money.js';
 import { navigate } from '../router.js';
 import { listCategories } from '../repo/categories.js';
+import { fullName } from '../category-tree.js';
 import { listProducts } from '../repo/products.js';
 import { parseChatImport, buildClaudePrompt } from '../chat-import.js';
 import { applyImport } from '../repo/import.js';
@@ -27,7 +28,8 @@ export async function renderImport(root) {
 
   async function copyPrompt() {
     const products = await listProducts();
-    const text = buildClaudePrompt(categories, products, new Map(categories.map((c) => [c.id, c.name])));
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    const text = buildClaudePrompt(categories, products, new Map(categories.map((c) => [c.id, fullName(c, byId)])));
     try {
       await navigator.clipboard.writeText(text);
       toast('Инструкция скопирована');

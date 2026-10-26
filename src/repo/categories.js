@@ -13,6 +13,7 @@ import { getDb, getAll, getOne, put, count, getSetting, setSetting } from '../db
  * @property {string} [employer] — для доходов: кто платит
  * @property {number | null} [payDay] — для доходов: какого числа платят
  * @property {boolean} [payNextMonth] — для доходов: за месяц платят в следующем месяце
+ * @property {string | null} [parentId] — статья: id категории, внутри которой она (только расходы)
  */
 
 /** @type {Record<Kind, string>} */
@@ -56,7 +57,7 @@ export async function seedDefaultCategories(db) {
   const now = new Date().toISOString();
   for (const kind of /** @type {Kind[]} */ (['expense', 'income'])) {
     DEFAULT_CATEGORIES[kind].forEach((name, order) => {
-      store.add({ id: crypto.randomUUID(), name, kind, archived: false, order, createdAt: now });
+      store.add({ id: crypto.randomUUID(), name, kind, archived: false, order, createdAt: now, parentId: null });
     });
   }
   tx.objectStore('settings').put({ key: SEEDED_KEY, value: true });
@@ -100,7 +101,7 @@ export async function createCategory(name, kind, db) {
   const d = db ?? (await getDb());
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Название категории не может быть пустым');
-  const existing = await listCategories({ kind, includeArchived: true }, d);
+  const existing = (await listCategories({ kind, includeArchived: true }, d)).filter((c) => !c.parentId);
   if (existing.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
     throw new Error('Категория с таким названием уже есть');
   }
@@ -113,9 +114,48 @@ export async function createCategory(name, kind, db) {
     archived: false,
     order,
     createdAt: new Date().toISOString(),
+    parentId: null,
   };
   await put(d, 'categories', category);
   return category;
+}
+
+/**
+ * Статья внутри категории расходов: «Здоровье» → «Страховка Freedom».
+ * @param {string} parentId
+ * @param {string} name
+ * @param {IDBDatabase} [db]
+ * @returns {Promise<Category>}
+ */
+export async function createArticle(parentId, name, db) {
+  const d = db ?? (await getDb());
+  const parent = await getCategory(parentId, d);
+  if (!parent) throw new Error('Категория не найдена');
+  if (parent.parentId) throw new Error('Статью можно добавить только в категорию, не в другую статью');
+  if (parent.kind !== 'expense') throw new Error('Статьи — только у категорий расходов');
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Укажите название статьи');
+  const siblings = (await listCategories({ kind: 'expense', includeArchived: true }, d)).filter((c) => c.parentId === parentId);
+  const same = siblings.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+  if (same && !same.archived) throw new Error('Такая статья уже есть');
+  if (same) {
+    // Была в архиве — возвращаем
+    const back = { ...same, archived: false };
+    await put(d, 'categories', back);
+    return back;
+  }
+  /** @type {Category} */
+  const article = {
+    id: crypto.randomUUID(),
+    name: trimmed,
+    kind: 'expense',
+    archived: false,
+    order: siblings.reduce((m, c) => Math.max(m, c.order), -1) + 1,
+    createdAt: new Date().toISOString(),
+    parentId,
+  };
+  await put(d, 'categories', article);
+  return article;
 }
 
 /**
@@ -129,9 +169,9 @@ export async function renameCategory(id, name, db) {
   if (!c) throw new Error('Категория не найдена');
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Название категории не может быть пустым');
-  const siblings = await listCategories({ kind: c.kind, includeArchived: true }, d);
+  const siblings = (await listCategories({ kind: c.kind, includeArchived: true }, d)).filter((s) => (s.parentId ?? null) === (c.parentId ?? null));
   if (siblings.some((s) => s.id !== id && s.name.toLowerCase() === trimmed.toLowerCase())) {
-    throw new Error('Категория с таким названием уже есть');
+    throw new Error(c.parentId ? 'Такая статья уже есть' : 'Категория с таким названием уже есть');
   }
   await put(d, 'categories', { ...c, name: trimmed });
 }
@@ -146,6 +186,12 @@ export async function setCategoryArchived(id, archived, db) {
   const c = await getCategory(id, d);
   if (!c) throw new Error('Категория не найдена');
   await put(d, 'categories', { ...c, archived });
+  // Категория в архив — и её статьи; из архива — вместе с ними
+  if (!c.parentId) {
+    for (const ch of (await listCategories({ kind: c.kind, includeArchived: true }, d)).filter((x) => x.parentId === id)) {
+      await put(d, 'categories', { ...ch, archived });
+    }
+  }
 }
 
 /**

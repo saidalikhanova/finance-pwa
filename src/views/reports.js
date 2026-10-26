@@ -68,6 +68,8 @@ export async function renderReports(root) {
             { class: 'bar-row', href: `#/operations?month=${month}&category=${r.categoryId}`, title: `${r.name}: ${formatMoney(r.amount, 'EUR')} (${r.share} %)` },
             el('div', { class: 'bar-row-head' }, el('span', null, r.name), el('span', { class: 'bar-row-amount' }, formatMoney(r.amount, 'EUR'), el('span', { class: 'muted small' }, ` ${r.share} %`))),
             el('div', { class: 'hbar' }, el('div', { class: 'hbar-fill', style: `width:${Math.max(1, (r.amount * 100) / max)}%` })),
+            // Разбивка по статьям внутри категории
+            r.articles.length ? el('div', { class: 'muted small', style: 'margin-top:4px' }, r.articles.map((a) => `${a.name} ${formatMoney(a.amount, 'EUR')}`).join(' · ')) : null,
           ),
         );
       }
