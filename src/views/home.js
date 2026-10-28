@@ -22,7 +22,7 @@ import { limitStatus } from '../limits.js';
 import { addDays } from '../dates.js';
 import { suggestRate } from '../repo/rates.js';
 import { upcomingRow } from './calendar.js';
-import { quickEntry } from './quick-entry.js';
+import { renderOperationForm } from './operation-form.js';
 import { backupReminder, DEFAULT_REMINDER_DAYS } from '../backup-reminder.js';
 
 const INSTALLED_AT = 'installedAt';
@@ -184,8 +184,10 @@ export async function renderHome(root) {
     root.append(el('a', { class: 'banner', href: '#/payments' }, el('strong', null, 'Платежи'), el('div', { class: 'small' }, parts.join('; '))));
   }
 
-  // Быстрый ввод расхода (п. 4.11 ТЗ)
-  root.append(await quickEntry());
+  // Быстрый ввод расхода (п. 4.11 ТЗ) — та же форма операции, в сокращённом виде
+  const quick = el('div', { class: 'card' }, el('div', { class: 'field-label' }, 'Быстрый расход'));
+  await renderOperationForm(quick, {}, { compact: true, onSaved: () => window.dispatchEvent(new HashChangeEvent('hashchange')) });
+  root.append(quick);
 
   // Ближайшие 7 дней
   const week = await listUpcoming(today, addDays(today, 6));

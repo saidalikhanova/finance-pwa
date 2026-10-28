@@ -20,7 +20,9 @@ import {
   todayISO,
 } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
-import { categoryLabel, categoryOptions } from './form-parts.js';
+import { categoryLabel } from './form-parts.js';
+import { categoryChips } from './category-chips.js';
+import { fullName } from '../category-tree.js';
 import { showLimitMessages } from './limit-check.js';
 
 /**
@@ -28,7 +30,10 @@ import { showLimitMessages } from './limit-check.js';
  * @param {HTMLElement} root
  * @param {Record<string, string>} params — { id } или { id: 'new' }
  */
-export async function renderOperationForm(root, params) {
+export async function renderOperationForm(root, params, opts = {}) {
+  // compact — быстрый ввод на главной: только расход, сегодня, без «Подробнее»;
+  // после сохранения форма очищается и вызывается opts.onSaved
+  const compact = Boolean(opts.compact);
   // Адрес #/operations/new не содержит параметра id — это новая операция.
   const isNew = !params.id || params.id === 'new';
   const existing = isNew ? null : await getOperation(params.id);
@@ -88,6 +93,7 @@ export async function renderOperationForm(root, params) {
       typeInput.value = v;
       fillCategories();
       itemsDetails.hidden = v !== 'expense';
+      if (compact) mainBox.hidden = true;
     },
   );
 
@@ -168,19 +174,29 @@ export async function renderOperationForm(root, params) {
   }
   updateRateField();
 
-  // Категория (у доходов — источник)
+  // Категория → статья (у доходов — источник): кнопками, как в быстром вводе.
+  // Выбранное значение хранится в скрытом поле.
   const categoryLabelEl = el('span', { class: 'field-label' });
-  const categorySelect = el('select', { class: 'select', name: 'categoryId', required: true });
+  const categorySelect = /** @type {HTMLInputElement} */ (el('input', { type: 'hidden', name: 'categoryId', value: '' }));
+  const categoryBox = el('div');
+  /** @type {ReturnType<typeof categoryChips> | null} */
+  let picker = null;
   function fillCategories() {
-    const kind = typeInput.value;
-    const current = existing?.categoryId ?? preset?.categoryId;
-    categorySelect.innerHTML = '';
-    categorySelect.append(el('option', { value: '', disabled: true, selected: true }, kind === 'income' ? 'Выберите источник' : 'Выберите категорию'));
+    const kind = /** @type {'expense' | 'income'} */ (typeInput.value);
+    const current = categorySelect.value || existing?.categoryId || preset?.categoryId || '';
     categoryLabelEl.textContent = categoryLabel(kind);
-    categorySelect.append(...categoryOptions(allCategories, kind, current));
-    if (current && [...categorySelect.options].some((o) => o.value === current)) categorySelect.value = current;
+    categorySelect.value = '';
+    // Архивную категорию уже записанной операции показываем, чтобы её было видно
+    const parentOfCurrent = allCategories.find((x) => x.id === current)?.parentId;
+    const list = allCategories.map((c) => (c.archived && (c.id === current || c.id === parentOfCurrent) ? { ...c, archived: false } : c));
+    picker = categoryChips({ categories: list, kind, onSelect: (c) => {
+      categorySelect.value = c?.id ?? '';
+      if (compact) mainBox.hidden = !c;
+      if (compact && c) amountInput.focus();
+    } });
+    categoryBox.replaceChildren(picker.el);
+    if (current && allCategories.some((c) => c.id === current && c.kind === kind)) picker.select(current);
   }
-  fillCategories();
 
   // Комментарий и магазин
   const commentInput = el('input', { class: 'input', name: 'comment', value: existing?.comment ?? preset?.comment ?? '', placeholder: 'Необязательно', maxlength: 200 });
@@ -200,11 +216,12 @@ export async function renderOperationForm(root, params) {
   function syncAmountWithItems() {
     const has = editor.length > 0;
     amountInput.readOnly = has;
-    categorySelect.disabled = has;
+    categoryBox.style.pointerEvents = has ? 'none' : '';
+    categoryBox.style.opacity = has ? '0.6' : '';
     if (has) {
       amountInput.value = amountToInput(editor.total());
       const first = editor.read()[0];
-      if (first?.categoryId) categorySelect.value = first.categoryId;
+      if (first?.categoryId) picker?.select(first.categoryId);
       updateEurPreview();
     }
   }
@@ -244,23 +261,35 @@ export async function renderOperationForm(root, params) {
     fileInput,
   );
 
-  form.replaceChildren(
-    field('Тип', typeToggle),
-    field('Сумма', el('div', { class: 'amount-row' }, amountInput, currencyToggle), eurPreview),
-    field(loan || plannedPay?.recurringId ? 'Дата оплаты — когда фактически заплатили' : 'Дата', dateInput),
-    rateField,
-    el('label', { class: 'field' }, categoryLabelEl, categorySelect),
-    itemsDetails,
+  // Два слоя: главное (сумма, валюта, категория, дата) и «Подробнее»
+  const hasDetails = Boolean(existing?.comment || existing?.store || existing?.items?.length || existing?.photoId);
+  const details = el('details', { class: 'card list-card', open: hasDetails },
+    el('summary', null, 'Подробнее: магазин, комментарий, чек, фото'),
     field('Магазин', storeInput),
     field('Комментарий', commentInput),
+    itemsDetails,
     photoField,
-    el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, isNew ? 'Сохранить' : 'Сохранить изменения')),
-    ...(existing ? [el('button', { class: 'btn btn-danger', type: 'button', onclick: onDelete }, 'Удалить операцию')] : []),
   );
+  const dateField = field(loan || plannedPay?.recurringId ? 'Дата оплаты — когда фактически заплатили' : 'Дата', dateInput);
+  // В быстром вводе сумма и кнопка появляются после выбора категории
+  const mainBox = el('div', { hidden: compact }, ...[
+    field('Сумма', el('div', { class: 'amount-row' }, amountInput, currencyToggle), eurPreview),
+    rateField,
+    compact ? null : dateField,
+    compact ? null : details,
+    el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, isNew ? 'Сохранить' : 'Сохранить изменения')),
+    existing ? el('button', { class: 'btn btn-danger', type: 'button', onclick: onDelete }, 'Удалить операцию') : null,
+  ].filter((n) => n != null));
+  form.replaceChildren(...[
+    compact || loan || plannedPay ? null : field('Тип', typeToggle),
+    el('div', { class: 'field' }, categoryLabelEl, categoryBox),
+    mainBox,
+  ].filter((n) => n != null));
   if (hint) form.prepend(hint);
   root.append(form);
+  fillCategories();
   syncAmountWithItems();
-  if (isNew) amountInput.focus();
+  if (isNew && !compact && categorySelect.value) amountInput.focus();
 
   /** @param {Event} e */
   async function onSubmit(e) {
@@ -283,7 +312,6 @@ export async function renderOperationForm(root, params) {
     }
     if (!items.length && !categorySelect.value) {
       toast(typeInput.value === 'income' ? 'Выберите источник дохода' : 'Выберите категорию', { error: true });
-      categorySelect.focus();
       return;
     }
     const currency = /** @type {'EUR' | 'KZT'} */ (currencyInput.value);
@@ -354,7 +382,17 @@ export async function renderOperationForm(root, params) {
         const month = data.date.slice(0, 7);
         const catIds = [...new Set(items.length ? items.map((it) => it.categoryId) : [data.categoryId])];
         // Лимиты статьи и её категории (у категории — вместе со статьями)
-        if (await showLimitMessages(month, catIds, allCategories, todayISO())) {
+        const shown = await showLimitMessages(month, catIds, allCategories, todayISO());
+        if (compact) {
+          if (!shown) toast(`Записано: ${fullName(allCategories.find((c) => c.id === data.categoryId), new Map(allCategories.map((c) => [c.id, c])))} — ${amountInput.value.trim()} ${currency === 'KZT' ? '₸' : '€'}`);
+          amountInput.value = '';
+          categorySelect.value = '';
+          picker?.clear();
+          mainBox.hidden = true;
+          opts.onSaved?.();
+          return;
+        }
+        if (shown) {
           navigate('/operations');
           return;
         }

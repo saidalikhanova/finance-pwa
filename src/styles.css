@@ -472,3 +472,7 @@ details[hidden] { display: none; }
 .cat-row-nested .cat-name { font-size: 15px; }
 .cat-row .link-btn { white-space: nowrap; flex-shrink: 0; font-size: 14px; padding-left: 2px; padding-right: 2px; }
 .cat-row .cat-name { min-width: 0; hyphens: auto; }
+
+/* Быстрый ввод на главной: та же форма операции, компактнее */
+.card > .form { margin: 0; }
+.card > .form .form-actions { margin-bottom: 0; }

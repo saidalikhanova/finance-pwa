@@ -3,7 +3,6 @@ import { seedDefaultCategories } from './repo/categories.js';
 import { renderHome } from './views/home.js';
 import { renderOperations } from './views/operations.js';
 import { renderOperationForm } from './views/operation-form.js';
-import { renderQuickAdd } from './views/quick-add.js';
 import { renderCategories } from './views/categories.js';
 import { renderMore } from './views/more.js';
 import { renderBudget } from './views/budget.js';
@@ -32,7 +31,7 @@ import { toast } from './ui.js';
 
 register('/', { title: 'Главная', render: renderHome });
 register('/operations', { title: 'Операции', render: renderOperations });
-register('/add', { title: 'Добавить', back: '/operations', tab: '/operations', render: renderQuickAdd });
+register('/add', { title: 'Новая операция', back: '/operations', tab: '/operations', render: renderOperationForm });
 register('/operations/new', { title: 'Новая операция', back: '/operations', tab: '/operations', render: renderOperationForm });
 register('/operations/:id', { title: 'Операция', back: '/operations', tab: '/operations', render: renderOperationForm });
 register('/budget', { title: 'Бюджет', render: renderBudget });
