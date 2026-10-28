@@ -316,6 +316,11 @@ export async function renderOperationForm(root, params, opts = {}) {
     }
     const currency = /** @type {'EUR' | 'KZT'} */ (currencyInput.value);
     let rate = null;
+    // Курс мог не успеть подставиться (валюту переключили и сразу сохранили) — подставляем ещё раз
+    if (currency === 'KZT' && !rateInput.value.trim() && !rateTouched) {
+      const r = await suggestRate(dateInput.value);
+      if (r) rateInput.value = formatRate(r.rate);
+    }
     if (currency === 'KZT' && rateInput.value.trim()) {
       rate = parseRate(rateInput.value);
       if (rate == null) {
