@@ -13,7 +13,7 @@ import { budgetState } from './budget.js';
 import { renderIncomeLine } from './income-line.js';
 import { segmented } from './form-parts.js';
 import { listLoans, loanLeft } from '../repo/loans.js';
-import { loanStatus } from './loan-form.js';
+import { loanStatus } from './pay-ui.js';
 import { isLoanCategory, scheduledInMonth } from '../loans.js';
 import { money, loadDisplay } from '../display.js';
 import { formatWhole } from '../money.js';

@@ -51,11 +51,11 @@ export async function renderPayments(root, params = {}) {
     else renderList(body, data);
     body.append(
       el('div', { class: 'btn-row', style: 'margin-top:12px' },
-        el('a', { class: 'btn', href: '#/payments/new' }, '+ По графику'),
-        el('a', { class: 'btn btn-secondary', href: '#/planned/new' }, '+ Разовый'),
+        el('a', { class: 'btn', href: '#/payments/new' }, '+ Платёж'),
+        el('a', { class: 'btn btn-secondary', href: '#/debts' }, 'Долги людям'),
       ),
       el('p', { class: 'muted small', style: 'margin:8px 4px 0' },
-        'Кредит — в «Бюджет → Кредиты». Все расписания (пауза, завершение, выгрузка в календарь телефона) — ',
+        'Платёж — один раз или по графику, расход или поступление, в том числе кредит. Все расписания (пауза, завершение, выгрузка в календарь телефона) — ',
         el('a', { href: '#/schedules' }, 'здесь'), '.'),
     );
   }
