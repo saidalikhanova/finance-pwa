@@ -111,7 +111,7 @@ export async function renderHome(root) {
   const lateIncome = overdue.filter((e) => e.type === 'income' && e.kind !== 'source');
   if (lateIncome.length) {
     alertCount++;
-    alerts.append(el('a', { class: 'menu-row', href: '#/payments' }, el('span', { class: 'warn' }, `Задерживается поступлений: ${lateIncome.length}`, el('div', { class: 'small muted' }, lateIncome.map((e) => e.name).join(', '))), el('span', { class: 'muted' }, '›')));
+    alerts.append(el('a', { class: 'menu-row', href: '#/payments' }, el('span', { class: 'warn' }, `Просрочено поступлений: ${lateIncome.length}`, el('div', { class: 'small muted' }, lateIncome.map((e) => e.name).join(', '))), el('span', { class: 'muted' }, '›')));
   }
   for (const l of tightLimits) {
     alertCount++;

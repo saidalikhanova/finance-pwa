@@ -26,7 +26,7 @@ export async function renderSchedules(root) {
     body.append(el('p', { class: 'muted small', style: 'margin:0 4px 12px' }, 'Все расписания: приостановить, завершить, удалить. Что оплатить и получить в этом месяце — в разделе «Платежи».'));
 
     // Повторяющиеся
-    body.append(el('h2', { class: 'section-title' }, 'Повторяющиеся платежи'));
+    body.append(el('h2', { class: 'section-title' }, 'По графику'));
     if (!schedules.length) body.append(emptyState('repeat', 'Аренда, подписки, кредит, зарплата — заведите один раз, операции будут создаваться сами', 'Добавить', '#/payments/new'));
     for (const s of schedules) {
       const next = nextOccurrence(s, addDays(today, -1));
@@ -62,7 +62,7 @@ export async function renderSchedules(root) {
     }
 
     // Разовые
-    body.append(el('h2', { class: 'section-title' }, 'Разовые запланированные'));
+    body.append(el('h2', { class: 'section-title' }, 'Один раз'));
     if (!planned.length) body.append(emptyState('document', 'Разовые платежи: страховка, кружок, налог — напоминание в календаре', 'Добавить', '#/planned/new'));
     for (const p of planned) {
       body.append(
@@ -78,7 +78,7 @@ export async function renderSchedules(root) {
           el(
             'div',
             { class: 'row-actions' },
-            el('a', { class: 'link-btn', href: `#/operations/new?planned=${p.id}` }, 'Оплачено'),
+            el('a', { class: 'link-btn', href: `#/operations/new?planned=${p.id}` }, p.type === 'income' ? 'Получил(а)' : 'Оплатил(а)'),
             linkBtn('Удалить', async () => {
               if (!(await confirmDialog(`Удалить «${p.name}»?`))) return;
               await deletePlanned(p.id);

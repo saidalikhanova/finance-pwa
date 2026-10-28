@@ -106,11 +106,11 @@ export async function renderIncomeLine(root, category, month) {
       el('div', { class: 'card' },
         el('div', { class: 'card-title' }, `Получено в ${formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ')}`),
         monthOps.length ? list : el('p', { class: 'muted small', style: 'margin:0 0 8px' }, 'Пока ничего не получено.'),
-        el('div', { class: 'field-label', style: 'margin-top:8px' }, 'Отметить поступление'),
+        el('div', { class: 'field-label', style: 'margin-top:8px' }, 'Записать поступление'),
         el('div', { class: 'amount-row' }, recAmount, recMoney.toggle),
         recMoney.preview,
         recMoney.rateField,
-        el('div', { class: 'add-row' }, recDate, el('button', { class: 'btn', type: 'button', onclick: addReceived }, 'Получено')),
+        el('div', { class: 'add-row' }, recDate, el('button', { class: 'btn', type: 'button', onclick: addReceived }, 'Получил(а)')),
       ),
     );
 
@@ -120,9 +120,9 @@ export async function renderIncomeLine(root, category, month) {
     for (const p of oneOff) oneOffList.append(expectedRow(p, today, rateNow));
     body.append(
       el('div', { class: 'card' },
-        el('div', { class: 'card-title' }, `Разовые поступления в ${formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ')}`),
-        oneOff.length ? oneOffList : el('p', { class: 'muted small', style: 'margin:0 0 8px' }, 'Например, оплата за тренинг или проект, которая придёт один раз. Входит в план доходов месяца.'),
-        el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/planned/new?type=income&category=${category.id}&month=${month}&from=budget` }, '+ Разовое поступление'),
+        el('div', { class: 'card-title' }, `Поступления с датой в ${formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ')}`),
+        oneOff.length ? oneOffList : el('p', { class: 'muted small', style: 'margin:0 0 8px' }, 'Например, оплата за тренинг или проект, которая придёт один раз. Входит в план доходов месяца и в «Платежи».'),
+        el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/planned/new?type=income&category=${category.id}&month=${month}&from=budget` }, '+ Поступление с датой'),
       ),
     );
 

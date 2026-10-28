@@ -13,6 +13,7 @@ import { suggestRate } from '../repo/rates.js';
 import { listSchedules } from '../repo/recurring.js';
 import { scheduledInMonth, isLoanCategory } from '../loans.js';
 import { childrenOf, rollup } from '../category-tree.js';
+import { payStatus, markLabel } from '../pay-status.js';
 import { toEurCents } from '../money.js';
 
 // Месяц сохраняется между переходами, чтобы после правки строки
@@ -192,14 +193,14 @@ export async function renderBudget(root) {
       const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: shiftMonth(thisMonth, 1), rateNow: rate, today, terms: c });
       const sub = orig
         ? `план ${formatWhole(orig.amount, orig.currency)} · получено ${formatWhole(/** @type {number} */ (recMonth), orig.currency)}`
-        : e ? `ожидается ${money(e.pending)}` : expectedBy.get(c.id)?.length ? 'ожидаемые поступления — ниже' : 'план не задан';
+        : e ? `ожидается ${money(e.pending)}` : expectedBy.get(c.id)?.length ? 'поступления с датой — ниже' : 'план не задан';
       const right = debt && debt.debt > 0
-        ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, debt.daysLate ? `просрочка ${debt.daysLate} дн.` : 'должны'))
+        ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, debt.daysLate ? `просрочено ${debt.daysLate} дн.` : 'должны'))
         : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, money(f)), el('div', { class: 'muted small' }, 'получено'));
       // «Получено» — как у ожидаемых поступлений: записать пришедшие деньги одним нажатием
       if (orig) {
         const date = month === today.slice(0, 7) ? today : `${month}-01`;
-        right.append(el('a', { class: 'btn btn-small expected-btn', href: `#/add?type=income&category=${c.id}&currency=${orig.currency}&date=${date}` }, 'Получено'));
+        right.append(el('a', { class: 'btn btn-small expected-btn', href: `#/add?type=income&category=${c.id}&currency=${orig.currency}&date=${date}` }, markLabel('income')));
       }
       const href = `#/budget/${month}/${c.id}`;
       incomeList.append(
@@ -327,12 +328,9 @@ export async function renderBudget(root) {
  */
 export function expectedRow(p, today, rate, nested = false) {
   const st = expectedStatus(p, today);
-  const label =
-    st.status === 'received'
-      ? `получено ${p.receivedDate ? formatDate(p.receivedDate) : ''}`
-      : st.status === 'overdue'
-        ? `задерживается ${st.daysLate} дн.`
-        : `ожидается ${whenLabel(p, formatDate)}`;
+  // Единые слова: ожидается · срок сегодня · просрочено N дн. · получено <дата>
+  const ps = payStatus({ date: p.dateKind === 'day' ? p.date : null, type: 'income', done: p.done, doneDate: p.receivedDate }, today);
+  const label = p.dateKind === 'month' && !p.done && st.status !== 'overdue' ? `ожидается ${whenLabel(p, formatDate)}` : st.status === 'overdue' && !p.done ? `просрочено ${st.daysLate} дн.` : ps.text;
   const eur = p.currency === 'KZT' ? toEurCents(p.amount, 'KZT', rate) : null;
   const shown = st.status === 'received' && p.receivedAmount != null ? p.receivedAmount : p.amount;
   return el(
@@ -346,7 +344,7 @@ export function expectedRow(p, today, rate, nested = false) {
     el('div', { class: 'row-amount' },
       el('div', { class: st.status === 'received' ? 'income' : '' }, formatMoney(shown, p.currency)),
       eur != null && st.status !== 'received' && displayCurrency() !== p.currency ? el('div', { class: 'muted small' }, `≈ ${money(eur)}`) : null,
-      st.status !== 'received' ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?planned=${p.id}` }, 'Получено') : null,
+      st.status !== 'received' ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?planned=${p.id}` }, markLabel('income')) : null,
     ),
   );
 }

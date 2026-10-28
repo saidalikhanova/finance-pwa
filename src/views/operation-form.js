@@ -77,8 +77,8 @@ export async function renderOperationForm(root, params, opts = {}) {
     ? el('p', { class: 'muted small' }, `Покупка из списка желаний: «${wish.name}». Проверьте сумму и сохраните.`)
     : plannedPay
       ? el('p', { class: 'muted small' }, plannedPay.type === 'income'
-          ? `Ожидаемый доход «${plannedPay.name}». Укажите, сколько и когда фактически пришло — это попадёт в факт.`
-          : `Запланированный платёж «${plannedPay.name}». Проверьте сумму и дату.`)
+          ? `Поступление «${plannedPay.name}». Укажите, сколько и когда фактически пришло — это попадёт в факт.`
+          : `Платёж «${plannedPay.name}». Укажите, когда фактически заплатили, и сумму, если она отличалась.`)
       : null;
 
   // Тип

@@ -46,7 +46,7 @@ export function monthEvents(p) {
     dated.push({
       date: it.date,
       name: it.name,
-      sub: p.loanCategories?.includes(it.categoryId) ? 'кредит' : it.source === 'recurring' ? 'повторяющийся' : 'разовый',
+      sub: p.loanCategories?.includes(it.categoryId) ? 'кредит' : it.source === 'recurring' ? 'по графику' : 'один раз',
       type: it.type,
       amount: it.amount,
       currency: it.currency,
@@ -58,7 +58,7 @@ export function monthEvents(p) {
 
   for (const pl of p.planned) {
     if (pl.done || pl.dateKind !== 'month' || pl.date.slice(0, 7) !== p.month) continue;
-    undated.push({ date: null, name: pl.name, sub: pl.type === 'income' ? 'разовое поступление' : 'разовый платёж', type: pl.type, amount: pl.amount, currency: pl.currency, href: `#/planned/${pl.id}`, pay: `#/operations/new?planned=${pl.id}`, kind: 'planned' });
+    undated.push({ date: null, name: pl.name, sub: 'один раз', type: pl.type, amount: pl.amount, currency: pl.currency, href: `#/planned/${pl.id}`, pay: `#/operations/new?planned=${pl.id}`, kind: 'planned' });
   }
 
   // Выплаты по источникам дохода: за этот месяц и за прошлый (если платят в следующем месяце)
