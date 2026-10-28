@@ -7,7 +7,6 @@ export function renderMore(root) {
       menu('#/reports', 'Отчёты'),
       menu('#/import', 'Импорт из чата'),
       menu('#/debts', 'Мои долги'),
-      menu('#/payments', 'Платежи'),
       menu('#/wishes', 'Желаемые покупки'),
     ),
     el('div', { class: 'card list-card' },

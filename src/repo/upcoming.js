@@ -15,6 +15,7 @@ import { listPlanned } from './planned.js';
  * @property {string} categoryId
  * @property {'recurring' | 'planned'} source
  * @property {string} refId
+ * @property {boolean} confirm — ждёт отметки («Оплатил(а)» / «Получил(а)»), а не записывается сам
  */
 
 /**
@@ -35,12 +36,12 @@ export async function listUpcoming(from, to, db) {
     // У доходов «с подтверждением» созданные периоды уже лежат в ожидаемых поступлениях.
     const fromN = s.confirm ? s.generatedCount : 0;
     for (const o of occurrences(s, fromN, addDays(from, -1), to)) {
-      out.push({ date: o.date, name: s.name, type: s.type, amount: s.amount, currency: s.currency, categoryId: s.categoryId, source: 'recurring', refId: s.id });
+      out.push({ date: o.date, name: s.name, type: s.type, amount: s.amount, currency: s.currency, categoryId: s.categoryId, source: 'recurring', refId: s.id, confirm: Boolean(s.confirm) });
     }
   }
   for (const p of await listPlanned({ from, to }, d)) {
     if (p.dateKind === 'month') continue;
-    out.push({ date: p.date, name: p.name, type: p.type, amount: p.amount, currency: p.currency, categoryId: p.categoryId, source: 'planned', refId: p.id });
+    out.push({ date: p.date, name: p.name, type: p.type, amount: p.amount, currency: p.currency, categoryId: p.categoryId, source: 'planned', refId: p.id, confirm: true });
   }
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.name.localeCompare(b.name, 'ru')));
 }

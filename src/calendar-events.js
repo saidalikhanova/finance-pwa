@@ -12,6 +12,8 @@ import { shiftMonth } from './ui.js';
  * @property {number} amount — в минимальных единицах своей валюты
  * @property {'EUR' | 'KZT'} currency
  * @property {string} href
+ * @property {string | null} pay — куда ведёт «Оплатил(а)» / «Получил(а)»; null — запишется сам
+ * @property {'recurring' | 'planned' | 'source' | 'debt'} kind
  */
 
 const MONTHS_GEN = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
@@ -49,12 +51,14 @@ export function monthEvents(p) {
       amount: it.amount,
       currency: it.currency,
       href: it.source === 'recurring' ? `#/payments/${it.refId}` : `#/planned/${it.refId}`,
+      pay: it.source === 'recurring' ? (it.confirm ? `#/operations/new?loan=${it.refId}` : null) : `#/operations/new?planned=${it.refId}`,
+      kind: it.source,
     });
   }
 
   for (const pl of p.planned) {
     if (pl.done || pl.dateKind !== 'month' || pl.date.slice(0, 7) !== p.month) continue;
-    undated.push({ date: null, name: pl.name, sub: pl.type === 'income' ? 'разовое поступление' : 'разовый платёж', type: pl.type, amount: pl.amount, currency: pl.currency, href: `#/planned/${pl.id}` });
+    undated.push({ date: null, name: pl.name, sub: pl.type === 'income' ? 'разовое поступление' : 'разовый платёж', type: pl.type, amount: pl.amount, currency: pl.currency, href: `#/planned/${pl.id}`, pay: `#/operations/new?planned=${pl.id}`, kind: 'planned' });
   }
 
   // Выплаты по источникам дохода: за этот месяц и за прошлый (если платят в следующем месяце)
@@ -66,18 +70,18 @@ export function monthEvents(p) {
       const name = c.employer ? `${c.name} · ${c.employer}` : c.name;
       const forMonth = `за ${MONTHS_GEN[Number(m.slice(5)) - 1]}`;
       if (!c.payDay) {
-        if (m === p.month) undated.push({ date: null, name, sub: 'день выплаты не указан', type: 'income', amount: orig.amount, currency: orig.currency, href: `#/budget/${m}/${c.id}` });
+        if (m === p.month) undated.push({ date: null, name, sub: 'день выплаты не указан', type: 'income', amount: orig.amount, currency: orig.currency, href: `#/budget/${m}/${c.id}`, pay: `#/add?type=income&category=${c.id}&currency=${orig.currency}`, kind: 'source' });
         continue;
       }
       const due = payDueDate(m, c);
       if (due < from || due > to) continue;
-      dated.push({ date: due, name, sub: forMonth, type: 'income', amount: orig.amount, currency: orig.currency, href: `#/budget/${m}/${c.id}` });
+      dated.push({ date: due, name, sub: forMonth, type: 'income', amount: orig.amount, currency: orig.currency, href: `#/budget/${m}/${c.id}`, pay: `#/add?type=income&category=${c.id}&currency=${orig.currency}&date=${due}`, kind: 'source' });
     }
   }
 
   for (const { debt, remaining } of p.debts) {
     if (remaining <= 0 || !debt.dueDate || debt.dueDate < from || debt.dueDate > to) continue;
-    dated.push({ date: debt.dueDate, name: `Вернуть: ${debt.person}`, sub: 'долг', type: 'expense', amount: remaining, currency: debt.currency, href: `#/debts/${debt.id}` });
+    dated.push({ date: debt.dueDate, name: `Вернуть: ${debt.person}`, sub: 'долг', type: 'expense', amount: remaining, currency: debt.currency, href: `#/debts/${debt.id}`, pay: `#/debts/${debt.id}`, kind: 'debt' });
   }
 
   dated.sort((a, b) => (/** @type {string} */ (a.date) < /** @type {string} */ (b.date) ? -1 : a.date === b.date ? a.name.localeCompare(b.name, 'ru') : 1));

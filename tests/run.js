@@ -18,6 +18,7 @@ import './income.test.js';
 import './calendar.test.js';
 import './loans.test.js';
 import './articles.test.js';
+import './pay-status.test.js';
 import './debts.test.js';
 
 run();

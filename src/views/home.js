@@ -181,7 +181,7 @@ export async function renderHome(root) {
     const parts = [];
     if (todayItems.length) parts.push(`сегодня: ${todayItems.map((u) => `${u.name} ${formatMoney(u.amount, u.currency)}`).join(', ')}`);
     if (tomorrowItems.length) parts.push(`завтра: ${tomorrowItems.map((u) => `${u.name} ${formatMoney(u.amount, u.currency)}`).join(', ')}`);
-    root.append(el('a', { class: 'banner', href: '#/calendar' }, el('strong', null, 'Платежи'), el('div', { class: 'small' }, parts.join('; '))));
+    root.append(el('a', { class: 'banner', href: '#/payments' }, el('strong', null, 'Платежи'), el('div', { class: 'small' }, parts.join('; '))));
   }
 
   // Быстрый ввод расхода (п. 4.11 ТЗ)
@@ -212,5 +212,5 @@ export async function renderHome(root) {
     }
     root.append(list, el('p', { class: 'muted small', style: 'margin:0 4px 12px' }, `Итого к оплате: ${money(Math.max(0, totalEur))}${unknown ? ` (без курса: ${unknown})` : ''}`));
   }
-  root.append(el('div', { class: 'btn-row' }, el('a', { class: 'btn btn-secondary', href: '#/calendar' }, 'Календарь'), el('a', { class: 'btn btn-secondary', href: '#/payments' }, 'Платежи')));
+  root.append(el('div', { class: 'btn-row' }, el('a', { class: 'btn btn-secondary', href: '#/payments' }, 'Платежи'), el('a', { class: 'btn btn-secondary', href: '#/payments?view=calendar' }, 'Календарь')));
 }

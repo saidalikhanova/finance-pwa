@@ -359,8 +359,14 @@ export async function renderOperationForm(root, params) {
           return;
         }
       }
-      toast(plannedPay?.type === 'income' ? 'Получено — записано в факт' : message);
-      navigate(plannedPay?.type === 'income' ? '/budget' : '/operations');
+      if (plannedPay) {
+        // Отметили из «Платежей», бюджета или статьи — возвращаемся туда же
+        toast(plannedPay.type === 'income' ? 'Получено — записано в факт' : 'Оплачено — записано в расходы');
+        goBack();
+        return;
+      }
+      toast(message);
+      navigate('/operations');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось сохранить', { error: true });
     }
