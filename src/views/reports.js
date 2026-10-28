@@ -3,6 +3,7 @@ import { formatMoney } from '../money.js';
 import { listCategories } from '../repo/categories.js';
 import { listOperations, monthRange } from '../repo/operations.js';
 import { summary, expensesByCategory, lastMonths, monthlySeries } from '../reports.js';
+import { donut } from './donut.js';
 
 const DYNAMICS_MONTHS = 12;
 
@@ -53,9 +54,11 @@ export async function renderReports(root) {
     );
     if (s.unknownRate) body.append(el('p', { class: 'muted small' }, `Операций без курса: ${s.unknownRate} — в итоги не входят.`));
 
-    // 2. Расходы по категориям: диаграмма (полосы) и таблица
+    // 2. Расходы по категориям: круг (с главной), полосы и таблица
     body.append(el('h2', { class: 'section-title' }, 'Расходы по категориям'));
     const rows = expensesByCategory(monthOps, byId);
+    const ring = donut(rows, month);
+    if (ring) body.append(el('div', { class: 'card' }, el('div', { class: 'hero-label', style: 'margin-bottom:8px' }, 'На что уходят деньги'), ring));
     if (!rows.length) {
       body.append(emptyState('basket', 'За этот месяц расходов нет', 'Добавить расход', '#/add'));
     } else {
