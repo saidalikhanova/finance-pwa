@@ -35,7 +35,7 @@ register('/add', { title: 'Новая операция', back: '/operations', ta
 register('/operations/new', { title: 'Новая операция', back: '/operations', tab: '/operations', render: renderOperationForm });
 register('/operations/:id', { title: 'Операция', back: '/operations', tab: '/operations', render: renderOperationForm });
 register('/budget', { title: 'Бюджет', render: renderBudget });
-register('/budget/:month/:categoryId', { title: 'План и лимит', back: '/budget', tab: '/budget', render: renderBudgetLine });
+register('/budget/:month/:categoryId', { title: 'Категория', back: '/budget', tab: '/budget', render: renderBudgetLine });
 register('/rates', { title: 'Курсы', back: '/more', tab: '/more', render: renderRates });
 register('/payments', { title: 'Платежи', render: renderPayments });
 register('/schedules', { title: 'Расписания', back: '/payments', tab: '/payments', render: renderSchedules });

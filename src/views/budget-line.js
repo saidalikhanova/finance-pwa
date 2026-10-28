@@ -12,9 +12,11 @@ import { suggestRate, saveRate } from '../repo/rates.js';
 import { budgetState } from './budget.js';
 import { renderIncomeLine } from './income-line.js';
 import { segmented } from './form-parts.js';
-import { listLoans, loanLeft } from '../repo/loans.js';
+import { loanLeft } from '../repo/loans.js';
 import { loanStatus } from './pay-ui.js';
 import { isLoanCategory, scheduledInMonth } from '../loans.js';
+import { limitStatus } from '../limits.js';
+import { payStatus, markLabel } from '../pay-status.js';
 import { money, loadDisplay } from '../display.js';
 import { formatWhole } from '../money.js';
 
@@ -43,7 +45,7 @@ export async function renderBudgetLine(root, params) {
   const fact = rollup(await sumByCategory(month), allCats).get(categoryId) ?? 0;
   const isExpense = category.kind === 'expense';
   const title = document.getElementById('page-title');
-  if (title && isExpense) title.textContent = fullName(category, byId);
+  if (title && isExpense) title.textContent = isArticle ? fullName(category, byId) : category.name;
   const today = todayISO();
 
   /** @type {'EUR' | 'KZT'} */
@@ -108,10 +110,23 @@ export async function renderBudgetLine(root, params) {
   }
   updatePreview();
 
+  const loan = isLoanCategory(category);
+  await loadDisplay();
+  // Шапка: категория и месяц, факт, лимит
+  const header = el('div', { class: 'card' },
+    el('div', { class: 'muted small' }, `${fullName(category, byId)} · ${formatMonth(month)}`),
+    el('div', null, `${loan ? 'Оплачено за месяц' : 'Факт'}: ${money(fact)}${articles.length ? ' (вместе со статьями)' : ''}`),
+  );
+  if (isExpense && line?.limit != null && !loan) {
+    const st = limitStatus(line.limit, fact, month, today);
+    header.append(
+      el('div', { class: `bar bar-${st.level}`, style: 'margin-top:8px' }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, st.percent)}%` })),
+      el('div', { class: `small ${st.level === 'ok' ? 'muted' : st.level === 'warn' ? 'warn' : 'over'}` }, `${st.percent} % из лимита ${money(line.limit)}${st.remaining >= 0 ? ` · осталось ${money(st.remaining)}` : ` · превышение ${money(-st.remaining)}`}`),
+    );
+  }
   const form = el(
     'form',
     { class: 'form', novalidate: true, onsubmit: onSubmit },
-    el('div', { class: 'card' }, el('div', { class: 'muted small' }, `${fullName(category, byId)} · ${formatMonth(month)}`), el('div', null, `Факт: ${formatMoney(fact, 'EUR')}${articles.length ? ' (вместе со статьями)' : ''}`)),
     el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Валюта ввода'), toggle),
     rateField,
     el('label', { class: 'field' }, plannedLabel, plannedInput, plannedPreview),
@@ -126,38 +141,26 @@ export async function renderBudgetLine(root, params) {
           : 'План — сколько ожидаете потратить; факт считается из записанных расходов.'
       : 'Здесь — общий план, если не хотите расписывать по поступлениям. Ожидаемые доходы (кнопка «+ Ожидаемый доход» в бюджете) добавляются к нему автоматически. Факт считается из полученных доходов.'),
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
-    ...(isExpense ? [] : [
-      el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/planned/new?type=income&category=${categoryId}&month=${month}&from=budget` }, '+ Ожидаемый доход'),
-      el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/add?type=income&category=${categoryId}&date=${month === today.slice(0, 7) ? today : `${month}-01`}` }, '+ Уже получен'),
-    ]),
-    el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, 'Операции категории за месяц'),
+  );
+  // Единый порядок для любой категории и статьи:
+  // шапка → план и лимит → статьи → платежи с датой → операции → убрать / вернуть
+  const payments = await paymentsCard(category, month, loan);
+  const hasPayments = payments.dataset.count !== '0';
+  const planOpen = !loan && (line?.planned != null || line?.limit != null || (!articles.length && !hasPayments));
+  const planBlock = loan
+    ? el('div', { class: 'card' }, el('p', { class: 'muted small', style: 'margin:0' }, 'План по кредитам считается сам — по графику платежей. Лимит для кредитов не нужен.'))
+    : el('details', { class: 'card list-card', open: planOpen }, el('summary', null, 'План и лимит'), form);
+  root.append(
+    header,
+    planBlock,
+    ...(isExpense && !isArticle && !loan ? [await articlesCard(category, articles, month)] : []),
+    payments,
+    el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, loan ? 'Все оплаты за месяц' : 'Операции за месяц'),
     line?.hidden
       ? el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`)
       : el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRemove }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`),
+    ...(isArticle ? [articleActions(category, month)] : []),
   );
-  // Категория «Кредиты»: план — это платежи по графику, лимит не нужен.
-  // Вместо полей плана и лимита — кредиты, оплачено за месяц и операции.
-  if (isLoanCategory(category)) {
-    await loadDisplay();
-    const title = document.getElementById('page-title');
-    if (title) title.textContent = category.name;
-    root.append(
-      await loansCard(categoryId, month),
-      el('div', { class: 'card' },
-        el('div', { class: 'muted small' }, `${category.name} · ${formatMonth(month)}`),
-        el('div', null, `Оплачено за месяц: ${money(fact)}`),
-        el('p', { class: 'muted small', style: 'margin:6px 0 0' }, 'План по кредитам считается сам — по графику платежей. Лимит для кредитов не нужен.'),
-      ),
-      el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, 'Все оплаты за месяц'),
-    );
-    if (line?.hidden) root.append(el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`));
-    return;
-  }
-  // Статьи категории / платежи статьи — над планом и лимитом
-  if (isExpense && !isArticle) root.append(await articlesCard(category, articles, month));
-  if (isArticle) root.append(await articlePaymentsCard(category, month));
-  root.append(form);
-  if (isArticle) root.append(articleActions(category, month));
 
   async function onRemove() {
     const ok = await confirmDialog(`Убрать «${category.name}» из бюджета: ${formatMonth(month).toLowerCase()}? Категория останется в других месяцах, записанные операции не удаляются.`, 'Убрать');
@@ -215,72 +218,6 @@ function parseOptional(value) {
   const s = value.replace(/\s+/g, '').replace(',', '.');
   if (s === '0' || s === '0.00' || s === '0.0') return 0;
   return parseAmount(value) ?? false;
-}
-
-/**
- * «Мои кредиты»: все кредиты, платежи месяца, кнопка «+ Кредит».
- * @param {string} categoryId
- * @param {string} month
- */
-async function loansCard(categoryId, month) {
-  const loans = (await listLoans()).filter((s) => s.categoryId === categoryId);
-  const card = el('div', { class: 'card' }, el('div', { class: 'card-title' }, 'Мои кредиты'));
-  if (!loans.length) {
-    card.append(el('p', { class: 'muted small', style: 'margin:0 0 10px' }, 'Добавьте кредит: банк, платёж в месяц и день платежа — он появится в календаре каждый месяц до последнего платежа.'));
-  } else {
-    const list = el('div', { class: 'list', style: 'margin:0 0 10px' });
-    for (const s of loans) {
-      const left = await loanLeft(s);
-      const day = Number(s.startDate.slice(8));
-      const sub = [`${day} числа`, s.status === 'paused' ? 'на паузе' : s.status === 'finished' ? 'выплачен' : left ? `осталось платежей: ${left.count}` : 'срок не указан'].join(' · ');
-      // Сумма кредита и сколько ещё выплатить по графику
-      const money2 = [s.principal ? `кредит ${formatWhole(s.principal, s.currency)}` : null, left && left.count && s.status !== 'finished' ? `осталось выплатить ${formatWhole(left.amount, s.currency)}` : null].filter(Boolean).join(' · ');
-      const href = `#/loans/${s.id}?month=${month}`;
-      const status = await loanStatus(s);
-      list.append(el('div', { class: 'row' },
-        el('a', { href, style: 'display:contents' }, avatar(s.bank ?? s.name, { small: true })),
-        el('a', { class: 'row-main', href, style: 'color:inherit;text-decoration:none' },
-          el('div', null, s.name),
-          el('div', { class: 'muted small' }, sub),
-          money2 ? el('div', { class: 'muted small' }, money2) : null,
-          status.text ? el('div', { class: `small ${status.late ? 'warn' : ''}` }, status.text) : null,
-        ),
-        el('div', { class: 'row-amount expense' },
-          el('div', null, formatWhole(-s.amount, s.currency)),
-          status.canPay ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?loan=${s.id}` }, 'Отметить оплату') : null,
-        ),
-      ));
-    }
-    card.append(list);
-    // Итого по кредитам: суммы кредитов и сколько ещё выплатить — по валютам
-    /** @type {(pick: (s: import('../recurring.js').Schedule) => number) => string} */
-    const byCurrency = (pick) => {
-      /** @type {Map<'EUR' | 'KZT', number>} */
-      const m = new Map();
-      for (const s of loans) {
-        const v = pick(s);
-        if (v) m.set(s.currency, (m.get(s.currency) ?? 0) + v);
-      }
-      return [...m].map(([c, a]) => formatWhole(a, c)).join(' + ');
-    };
-    if (loans.length > 1) {
-      const principalTotal = byCurrency((s) => s.principal ?? 0);
-      const leftBy = new Map(await Promise.all(loans.map(async (s) => /** @type {[string, number]} */ ([s.id, (await loanLeft(s))?.amount ?? 0]))));
-      const leftTotal = byCurrency((s) => leftBy.get(s.id) ?? 0);
-      const parts = [principalTotal ? `сумма кредитов ${principalTotal}` : null, leftTotal ? `осталось выплатить ${leftTotal}` : null].filter(Boolean);
-      if (parts.length) card.append(el('p', { class: 'small', style: 'margin:0 0 6px' }, `Всего: ${parts.join(' · ')}`));
-    }
-    // Сколько платить в этом месяце — по валютам
-    /** @type {Map<string, number>} */
-    const sums = new Map();
-    for (const { s } of scheduledInMonth(loans, categoryId, month)) sums.set(s.currency, (sums.get(s.currency) ?? 0) + s.amount);
-    if (sums.size) {
-      const total = [...sums].map(([c, a]) => formatWhole(a, /** @type {'EUR' | 'KZT'} */ (c))).join(' + ');
-      card.append(el('p', { class: 'small', style: 'margin:0 0 10px' }, `Платежей в ${formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ')}: ${total}`));
-    }
-  }
-  card.append(el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/loans/new?month=${month}` }, '+ Кредит'));
-  return card;
 }
 
 /**
@@ -347,56 +284,91 @@ async function articlesCard(category, articles, month) {
 }
 
 /**
- * Платежи статьи с датой: регулярные (раз в месяц, раз в год) и разовые —
- * с состоянием и «Отметить оплату».
- * @param {import('../repo/categories.js').Category} article
+ * «Платежи с датой» категории или статьи: по графику (кредиты, страховки, подписки)
+ * и разовые — с состоянием и «Оплатил(а)». У «Кредитов» — банк, остаток, итоги.
+ * @param {import('../repo/categories.js').Category} c
  * @param {string} month
+ * @param {boolean} loan — категория «Кредиты»
  */
-async function articlePaymentsCard(article, month) {
+async function paymentsCard(c, month, loan) {
   const today = todayISO();
   const { from, to } = monthRange(month);
-  const schedules = (await listSchedules()).filter((s) => s.categoryId === article.id);
-  const oneOff = (await listPlanned({ from, to, includeDone: true, type: 'expense' })).filter((p) => p.categoryId === article.id && !p.recurringId);
-  const card = el('div', { class: 'card' }, el('div', { class: 'card-title' }, 'Платежи с датой'));
+  const schedules = (await listSchedules()).filter((s) => s.categoryId === c.id);
+  const oneOff = (await listPlanned({ from, to, includeDone: true, type: 'expense' })).filter((p) => p.categoryId === c.id && !p.recurringId);
+  const card = el('div', { class: 'card' }, el('div', { class: 'card-title' }, loan ? 'Мои кредиты' : 'Платежи с датой'));
+  card.dataset.count = String(schedules.length + oneOff.length);
   if (!schedules.length && !oneOff.length) {
-    card.append(el('p', { class: 'muted small', style: 'margin:0 0 10px' }, 'Если у статьи есть срок оплаты (например, страховка раз в год 15 марта) — добавьте платёж: он появится в календаре, войдёт в план, и в срок его можно будет отметить оплаченным.'));
+    card.append(el('p', { class: 'muted small', style: 'margin:0 0 10px' }, loan
+      ? 'Добавьте кредит: банк, платёж в месяц и день платежа — он появится в календаре каждый месяц до последнего платежа.'
+      : 'Если есть срок оплаты (страховка раз в год, подписка каждый месяц) — добавьте платёж: он появится в «Платежах» и календаре, войдёт в план, и в срок его можно будет отметить.'));
   }
   const list = el('div', { class: 'list', style: 'margin:0 0 10px' });
   for (const s of schedules) {
-    const status = s.confirm ? await loanStatus(s) : { text: 'записывается в расходы автоматически в день платежа', late: false, canPay: false };
+    const status = s.confirm ? await loanStatus(s) : { text: 'записывается сам в день платежа', late: false, canPay: false };
+    const href = loan ? `#/loans/${s.id}?month=${month}` : `#/payments/${s.id}?from=budget`;
+    const subs = [];
+    if (loan) {
+      const left = await loanLeft(s);
+      subs.push([`${Number(s.startDate.slice(8))} числа`, s.status === 'paused' ? 'на паузе' : s.status === 'finished' ? 'выплачен' : left ? `осталось платежей: ${left.count}` : 'срок не указан'].join(' · '));
+      const money2 = [s.principal ? `кредит ${formatWhole(s.principal, s.currency)}` : null, left && left.count && s.status !== 'finished' ? `осталось выплатить ${formatWhole(left.amount, s.currency)}` : null].filter(Boolean).join(' · ');
+      if (money2) subs.push(money2);
+    } else {
+      subs.push(`${PERIOD_LABEL[s.period]} · с ${formatDate(s.startDate)}`);
+    }
     list.append(el('div', { class: 'row' },
-      el('a', { class: 'row-main', href: `#/payments/${s.id}`, style: 'color:inherit;text-decoration:none' },
+      el('a', { href, style: 'display:contents' }, avatar(s.bank ?? s.name, { small: true })),
+      el('a', { class: 'row-main', href, style: 'color:inherit;text-decoration:none' },
         el('div', null, s.name),
-        el('div', { class: 'muted small' }, `${PERIOD_LABEL[s.period]} · с ${formatDate(s.startDate)}`),
+        ...subs.map((t) => el('div', { class: 'muted small' }, t)),
         status.text ? el('div', { class: `small ${status.late ? 'warn' : ''}` }, status.text) : null,
       ),
       el('div', { class: 'row-amount expense' },
         el('div', null, formatWhole(-s.amount, s.currency)),
-        status.canPay ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?loan=${s.id}` }, 'Отметить оплату') : null,
+        status.canPay ? el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?loan=${s.id}` }, markLabel('expense')) : null,
       ),
     ));
   }
   for (const p of oneOff) {
-    const text = p.done
-      ? `оплачено${p.receivedDate ? ` ${formatDate(p.receivedDate)}` : ''}`
-      : p.date < today ? `просрочен — срок ${formatDate(p.date)}` : `ожидает оплаты — срок ${formatDate(p.date)}`;
+    const st = payStatus({ date: p.dateKind === 'day' ? p.date : null, type: 'expense', done: p.done, doneDate: p.receivedDate }, today);
     list.append(el('div', { class: 'row' },
-      el('a', { class: 'row-main', href: `#/planned/${p.id}`, style: 'color:inherit;text-decoration:none' },
+      el('a', { href: `#/planned/${p.id}?from=budget`, style: 'display:contents' }, avatar(p.name, { small: true })),
+      el('a', { class: 'row-main', href: `#/planned/${p.id}?from=budget`, style: 'color:inherit;text-decoration:none' },
         el('div', null, p.name),
-        el('div', { class: `small ${!p.done && p.date < today ? 'warn' : 'muted'}` }, `разовый · ${text}`),
+        el('div', { class: `small ${st.kind === 'overdue' ? 'warn' : 'muted'}` }, `один раз · ${st.text}`),
       ),
       el('div', { class: 'row-amount expense' },
         el('div', null, formatWhole(-p.amount, p.currency)),
-        p.done ? null : el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?planned=${p.id}` }, 'Отметить оплату'),
+        p.done ? null : el('a', { class: 'btn btn-small expected-btn', href: `#/operations/new?planned=${p.id}` }, markLabel('expense')),
       ),
     ));
   }
   if (schedules.length || oneOff.length) card.append(list);
-  const name = encodeURIComponent(article.name);
-  card.append(
-    el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-bottom:8px', href: `#/payments/new?category=${article.id}&confirm=1&name=${name}` }, '+ Регулярный платёж (каждый месяц / год)'),
-    el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/planned/new?type=expense&category=${article.id}&month=${month}&name=${name}&from=article` }, '+ Разовый платёж'),
-  );
+  // Итоги: по кредитам — суммы и остаток; у всех — платежи этого месяца
+  if (loan && schedules.length > 1) {
+    /** @type {Map<'EUR' | 'KZT', number>} */
+    const principal = new Map();
+    /** @type {Map<'EUR' | 'KZT', number>} */
+    const left = new Map();
+    for (const s of schedules) {
+      if (s.principal) principal.set(s.currency, (principal.get(s.currency) ?? 0) + s.principal);
+      const l = s.status === 'finished' ? null : await loanLeft(s);
+      if (l?.amount) left.set(s.currency, (left.get(s.currency) ?? 0) + l.amount);
+    }
+    const fmt = (/** @type {Map<'EUR' | 'KZT', number>} */ m) => [...m].map(([cur, a]) => formatWhole(a, cur)).join(' + ');
+    const parts = [principal.size ? `сумма кредитов ${fmt(principal)}` : null, left.size ? `осталось выплатить ${fmt(left)}` : null].filter(Boolean);
+    if (parts.length) card.append(el('p', { class: 'small', style: 'margin:0 0 6px' }, `Всего: ${parts.join(' · ')}`));
+  }
+  /** @type {Map<string, number>} */
+  const sums = new Map();
+  for (const { s } of scheduledInMonth(schedules, c.id, month)) sums.set(s.currency, (sums.get(s.currency) ?? 0) + s.amount);
+  for (const p of oneOff) if (!p.done) sums.set(p.currency, (sums.get(p.currency) ?? 0) + p.amount);
+  if (sums.size) {
+    const total = [...sums].map(([cur, a]) => formatWhole(a, /** @type {'EUR' | 'KZT'} */ (cur))).join(' + ');
+    card.append(el('p', { class: 'small', style: 'margin:0 0 10px' }, `Платежей в ${formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ')}: ${total}`));
+  }
+  card.append(loan
+    ? el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/loans/new?month=${month}` }, '+ Кредит')
+    : el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/payments/new?category=${c.id}&confirm=1&from=budget${c.parentId ? `&name=${encodeURIComponent(c.name)}` : ''}` }, '+ Платёж с датой'));
   return card;
 }
 

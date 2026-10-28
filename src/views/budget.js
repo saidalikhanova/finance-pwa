@@ -111,12 +111,11 @@ export async function renderBudget(root) {
       const prev = sources.find((m) => m < month) ?? sources[0];
       const select = el('select', { class: 'select', 'aria-label': 'Месяц-источник' }, ...sources.map((m) => el('option', { value: m }, formatMonth(m))));
       select.value = prev;
+      // Свёрнуто, чтобы не занимать место: раскрыто только у месяца без бюджета
       body.append(
-        el(
-          'div',
-          { class: lines.length ? 'copy-row copy-row-compact' : 'card copy-row' },
-          lines.length ? null : el('p', { class: 'muted' }, 'На этот месяц бюджета ещё нет.'),
-          el('div', { class: 'add-row' }, select, el('button', { class: 'btn btn-small', onclick: () => doCopy(select.value) }, 'Скопировать')),
+        el('details', { class: 'card list-card', open: !lines.length },
+          el('summary', { class: 'muted' }, lines.length ? 'Скопировать бюджет из другого месяца' : 'На этот месяц бюджета ещё нет — скопировать из другого месяца?'),
+          el('div', { class: 'add-row', style: 'padding:8px 0 12px' }, select, el('button', { class: 'btn btn-small', onclick: () => doCopy(select.value) }, 'Скопировать')),
         ),
       );
     } else if (!lines.length) {
@@ -261,8 +260,8 @@ export async function renderBudget(root) {
     const wishes = (await listWishes()).filter((w) => w.status === 'want');
     const plannedWishes = (await listWishes()).filter((w) => w.status === 'planned' && w.plannedMonth === month);
     if (wishes.length || plannedWishes.length) {
-      body.append(el('h2', { class: 'section-title' }, 'Желаемые покупки'));
-      const card = el('div', { class: 'card list-card' });
+      // Свёрнуто: раскрывается, когда нужно перенести желаемое в план месяца
+      const card = el('details', { class: 'card list-card' }, el('summary', { class: 'muted' }, `Желаемые покупки: ${wishes.length}${plannedWishes.length ? ` · в плане месяца: ${plannedWishes.length}` : ''}`));
       const priceEur = (/** @type {import('../repo/wishes.js').Wish} */ w) => (w.price == null ? null : toEurCents(w.price, w.currency, rate));
       /** @type {HTMLInputElement[]} */
       const boxes = [];
