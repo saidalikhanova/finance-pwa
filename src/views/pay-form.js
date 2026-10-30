@@ -20,7 +20,8 @@ import { loanStatus, historyDetails } from './pay-ui.js';
 
 const ADD_BANK = '__add__';
 /** @type {[string, string][]} */
-const KINDS = [['once', 'Один раз'], ['monthly', 'Каждый месяц'], ['yearly', 'Каждый год'], ['weekly', 'Каждую неделю'], ['custom', 'Свой период']];
+const KINDS = [['once', 'Один раз'], ['monthly', 'Каждый месяц'], ['yearly', 'Каждый год']];
+const KINDS_MORE = [['weekly', 'Каждую неделю'], ['custom', 'Свой период']];
 
 /**
  * @param {HTMLElement} root
@@ -136,16 +137,23 @@ export async function renderPayForm(root, params) {
   });
   const purposeInput = /** @type {HTMLInputElement} */ (el('input', { class: 'input', value: schedule ? loanPurpose(schedule) : '', placeholder: 'ипотека, авто, потребительский', maxlength: 60 }));
   const principalInput = /** @type {HTMLInputElement} */ (el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: schedule?.principal ? amountToInput(schedule.principal).replace(/,00$/, '') : '' }));
-  const loanBox = el('div', null,
-    field('Банк', bankSelect, el('p', { class: 'muted small' }, 'Список банков — «Ещё» → «Банки».')),
-    field('Что за кредит (необязательно)', purposeInput),
-    field('Сумма кредита (основной долг), необязательно', el('div', { class: 'amount-row' }, principalInput, principalUnit)),
+  const loanBox = el('div', null, field('Банк', bankSelect));
+  const loanMore = el('div', null,
+    field('Что за кредит', purposeInput),
+    field('Сумма кредита (основной долг)', el('div', { class: 'amount-row' }, principalInput, principalUnit)),
   );
   function isLoan() {
     return type === 'expense' && loanCategoryIds.has(categorySelect.el.value);
   }
   function renderLoan() {
     loanBox.hidden = !isLoan();
+    loanMore.hidden = !isLoan();
+    // У кредита срок обычно известен — число платежей показываем сразу
+    if (isLoan() && !schedule && endType === 'none') {
+      endType = 'count';
+      endToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.value === 'count'));
+    }
+    renderWhen();
     if (isLoan() && !nameInput.value.trim() && bankSelect.value && bankSelect.value !== ADD_BANK) nameInput.value = loanName(bankSelect.value, purposeInput.value);
   }
 
@@ -153,12 +161,24 @@ export async function renderPayForm(root, params) {
   /** @type {string} */
   // Существующий — как заведён; новый — по графику (каждый месяц), если не попросили разовый
   let kind = schedule ? schedule.period : planned ? 'once' : params.kind ?? 'monthly';
-  // Пять вариантов — списком, кнопками не помещаются на телефоне
+  // Три обычных варианта; «каждую неделю» и «свой период» — за пунктом «другое…»
   const kindSelect = /** @type {HTMLSelectElement} */ (el('select', { class: 'select', onchange: () => {
+    if (kindSelect.value === '__more__') {
+      fillKinds(true);
+      kindSelect.value = 'weekly';
+    }
     kind = kindSelect.value;
     renderWhen();
     renderConfirm();
-  } }, ...KINDS.map(([v, l]) => el('option', { value: v }, l))));
+  } }));
+  /** @param {boolean} all */
+  function fillKinds(all) {
+    kindSelect.replaceChildren(
+      ...KINDS.map(([v, l]) => el('option', { value: v }, l)),
+      ...(all ? KINDS_MORE.map(([v, l]) => el('option', { value: v }, l)) : [el('option', { value: '__more__' }, 'другое…')]),
+    );
+  }
+  fillKinds(kind === 'weekly' || kind === 'custom');
   kindSelect.value = kind;
   // Один раз: точная дата или только месяц
   let dateKind = planned?.dateKind ?? (params.month || initialType === 'income' ? 'month' : 'day');
@@ -182,23 +202,23 @@ export async function renderPayForm(root, params) {
   const endDateInput = /** @type {HTMLInputElement} */ (el('input', { class: 'input', type: 'date', value: schedule?.endDate ?? '' }));
   const countInput = /** @type {HTMLInputElement} */ (el('input', { class: 'input', type: 'number', min: 1, step: 1, inputmode: 'numeric', value: schedule?.count ?? '' }));
   const endDateField = field('Дата последнего платежа', endDateInput);
-  const countField = field('Сколько платежей осталось (включая ближайший)', countInput);
-  const onceBox = el('div', null, el('div', { class: 'field' }, dateKindToggle), dateField, monthField);
-  const repeatBox = el('div', null,
-    field(schedule ? 'Дата платежа (её число — день платежа)' : 'Дата ближайшего платежа', startInput, el('p', { class: 'muted small' }, 'Число этой даты — день платежа каждый период.')),
-    intervalField,
-    field('Когда закончится', endToggle),
-    endDateField,
-    countField,
-  );
+  const countField = field('Сколько платежей осталось', countInput);
+  const onceBox = el('div', null, dateField, monthField);
+  const startField = field('Дата ближайшего платежа', startInput, el('p', { class: 'muted small' }, 'Её число — день платежа каждый период.'));
+  const repeatBox = el('div', null, startField, countField);
+  const dateKindField = el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Дата платежа'), dateKindToggle);
+  const endField = field('Когда закончится', endToggle);
   function renderWhen() {
     onceBox.hidden = kind !== 'once';
     repeatBox.hidden = kind === 'once';
     dateField.hidden = dateKind !== 'day';
     monthField.hidden = dateKind !== 'month';
     intervalField.hidden = kind !== 'custom';
-    endDateField.hidden = endType !== 'date';
-    countField.hidden = endType !== 'count';
+    endDateField.hidden = endType !== 'date' || kind === 'once';
+    // Число платежей — в основной части (кредиты), остальное окончание — в «Дополнительно»
+    countField.hidden = endType !== 'count' || kind === 'once';
+    dateKindField.hidden = kind !== 'once';
+    endField.hidden = kind === 'once';
   }
 
   // Ждать подтверждения — только по графику (разовый всегда ждёт отметки)
@@ -211,10 +231,12 @@ export async function renderPayForm(root, params) {
       ? 'В срок появится как «ожидается»; в факт попадёт, когда нажмёте «Получила». Снимите, если деньги приходят точно в срок и их можно записывать автоматически.'
       : 'В срок появится в «Платежах» и будет ждать «Оплатила» — с фактической датой и суммой. Снимите, если платёж списывается сам и его можно записывать автоматически.';
   }
-  renderLoan();
-  renderWhen();
-  renderConfirm();
-
+  // Редкое — под «Дополнительно»: только месяц, окончание, интервал, ждать отметки, детали кредита
+  const advancedOpen = Boolean(schedule && (schedule.endType === 'date' || schedule.period === 'custom' || !schedule.confirm)) || planned?.dateKind === 'month';
+  const advanced = el('details', { class: 'card list-card', open: advancedOpen },
+    el('summary', { class: 'muted' }, 'Дополнительно'),
+    el('div', { style: 'padding-top:8px' }, dateKindField, endField, endDateField, intervalField, confirmField, loanMore),
+  );
   const form = el('form', { class: 'form', novalidate: true, onsubmit: save },
     field('Что', nameInput),
     field('Тип', typeToggle),
@@ -224,10 +246,13 @@ export async function renderPayForm(root, params) {
     field('Когда', kindSelect),
     onceBox,
     repeatBox,
-    confirmField,
+    advanced,
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
     existing ? el('button', { class: 'btn btn-danger', type: 'button', onclick: remove }, 'Удалить') : null,
   );
+  renderLoan();
+  renderWhen();
+  renderConfirm();
   root.append(form);
   if (!existing && !nameInput.value) nameInput.focus();
 
