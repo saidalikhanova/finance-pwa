@@ -61,7 +61,10 @@ export async function renderOperations(root, params = {}) {
       ),
       el('div', { class: 'filter-row' }, typeSelect, catSelect),
     ),
-    el('div', { class: 'btn-row' }, el('a', { class: 'btn btn-secondary btn-small', href: '#/import' }, 'Импорт из чата')),
+    el('div', { class: 'btn-row' },
+      el('a', { class: 'btn btn-secondary', href: '#/import' }, 'Импорт чека из Claude'),
+      el('a', { class: 'btn btn-secondary', href: '#/add' }, '+ Трата вручную'),
+    ),
     list,
     el('a', { class: 'fab', href: '#/add', 'aria-label': 'Добавить расход' }, '+'),
   );

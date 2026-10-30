@@ -262,14 +262,18 @@ export async function renderOperationForm(root, params, opts = {}) {
   );
 
   // Два слоя: главное (сумма, валюта, категория, дата) и «Подробнее»
-  const hasDetails = Boolean(existing?.comment || existing?.store || existing?.items?.length || existing?.photoId);
-  const details = el('details', { class: 'card list-card', open: hasDetails },
-    el('summary', null, 'Подробнее: магазин, комментарий, чек, фото'),
+  const hasDetails = Boolean(existing?.store || existing?.items?.length || existing?.photoId);
+  // Магазин, чек и фото — только если они уже есть (например, из импорта) или по кнопке «Подробнее»
+  const moreBox = el('div', { hidden: !hasDetails },
     field('Магазин', storeInput),
-    field('Комментарий', commentInput),
     itemsDetails,
     photoField,
   );
+  const moreLink = el('button', { class: 'link-btn', type: 'button', hidden: hasDetails, style: 'padding:0 0 12px', onclick: () => {
+    moreBox.hidden = false;
+    moreLink.hidden = true;
+  } }, 'Подробнее: магазин, позиции чека, фото');
+  const details = el('div', null, field('Комментарий', commentInput), moreLink, moreBox);
   const dateField = field(loan || plannedPay?.recurringId ? 'Дата оплаты — когда фактически заплатили' : 'Дата', dateInput);
   // В быстром вводе сумма и кнопка появляются после выбора категории
   const mainBox = el('div', { hidden: compact }, ...[
