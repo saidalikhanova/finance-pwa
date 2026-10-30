@@ -483,3 +483,4 @@ details[hidden] { display: none; }
 .kv-row .kv-value { flex: 1; font-weight: 500; }
 .panel { padding: 8px 0 10px; border-bottom: 1px solid var(--border); }
 .panel[hidden] { display: none; }
+.chip-more { background: transparent; border-style: dashed; color: var(--text-muted); }

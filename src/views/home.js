@@ -65,21 +65,27 @@ export async function renderHome(root) {
   if (limitTotal > 0) {
     const st = limitStatus(limitTotal, limitSpent, month, today);
     // «Можно потратить сегодня»: остаток по всем лимитам, делённый на дни до конца месяца
-    hero.querySelector('.hero-grid')?.append(
-      el('div', null, el('div', { class: 'small' }, 'Можно сегодня'), el('strong', { class: st.level === 'over' ? 'over' : st.level === 'warn' ? 'warn' : 'income' }, st.perDay != null ? money(st.perDay) : st.remaining < 0 ? 'лимиты превышены' : '—')),
-      el('div', null, el('div', { class: 'small' }, 'Осталось по лимитам'), el('strong', { class: st.remaining < 0 ? 'over' : '' }, money(st.remaining))),
-    );
+    // Лимиты — одной строкой: полоса и «можно сегодня»
     hero.append(
-      el('div', { class: `bar bar-${st.level}` }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, st.percent)}%` })),
-      el('div', { class: 'small muted' }, `Лимиты: ${money(limitSpent)} из ${money(limitTotal)} (${st.percent} %)`),
+      el('div', { class: `bar bar-${st.level}`, style: 'margin-top:10px' }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, st.percent)}%` })),
+      el('div', { class: `small ${st.level === 'ok' ? 'muted' : st.level === 'warn' ? 'warn' : 'over'}` },
+        `Лимиты: ${money(limitSpent)} из ${money(limitTotal)} · ${st.remaining < 0 ? `превышены на ${money(-st.remaining)}` : st.perDay != null ? `можно сегодня ${money(st.perDay)}` : `осталось ${money(st.remaining)}`}`),
     );
   }
   if (s.unknownRate) hero.append(el('div', { class: 'small muted' }, `Без курса: ${s.unknownRate} — в итоги не входят.`));
   root.append(hero);
 
   // 2. Быстрый расход (п. 4.11 ТЗ) — та же форма операции, в сокращённом виде
+  // Шесть самых частых категорий за 90 дней — первыми, остальные за «ещё»
+  /** @type {Map<string, number>} */
+  const freq = new Map();
+  for (const o of await listOperations({ from: addDays(today, -90), to: today, type: 'expense' }, db)) {
+    const top = byId.get(o.categoryId)?.parentId ?? o.categoryId;
+    freq.set(top, (freq.get(top) ?? 0) + 1);
+  }
+  const frequent = [...freq].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id]) => id);
   const quick = el('div', { class: 'card' }, el('div', { class: 'field-label' }, 'Быстрый расход'));
-  await renderOperationForm(quick, {}, { compact: true, onSaved: () => window.dispatchEvent(new HashChangeEvent('hashchange')) });
+  await renderOperationForm(quick, {}, { compact: true, frequent: frequent.length >= 3 ? frequent : undefined, onSaved: () => window.dispatchEvent(new HashChangeEvent('hashchange')) });
   root.append(quick);
 
   // 3. Предупреждения: просроченные платежи и поступления, «вам должны», лимиты, копия

@@ -189,7 +189,7 @@ export async function renderOperationForm(root, params, opts = {}) {
     // Архивную категорию уже записанной операции показываем, чтобы её было видно
     const parentOfCurrent = allCategories.find((x) => x.id === current)?.parentId;
     const list = allCategories.map((c) => (c.archived && (c.id === current || c.id === parentOfCurrent) ? { ...c, archived: false } : c));
-    picker = categoryChips({ categories: list, kind, onSelect: (c) => {
+    picker = categoryChips({ categories: list, kind, frequent: compact ? opts.frequent : undefined, onSelect: (c) => {
       categorySelect.value = c?.id ?? '';
       if (compact) mainBox.hidden = !c;
       if (compact && c) amountInput.focus();
@@ -286,7 +286,7 @@ export async function renderOperationForm(root, params, opts = {}) {
   ].filter((n) => n != null));
   form.replaceChildren(...[
     compact || loan || plannedPay ? null : field('Тип', typeToggle),
-    el('div', { class: 'field' }, categoryLabelEl, categoryBox),
+    el('div', { class: 'field' }, compact ? null : categoryLabelEl, categoryBox),
     mainBox,
   ].filter((n) => n != null));
   if (hint) form.prepend(hint);

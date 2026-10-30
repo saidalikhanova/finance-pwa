@@ -7,11 +7,20 @@ import { childrenOf } from '../category-tree.js';
  *   categories: import('../repo/categories.js').Category[],
  *   kind: 'expense' | 'income',
  *   onSelect: (c: import('../repo/categories.js').Category | null, label: string) => void,
+ *   frequent?: string[] — id самых частых категорий: показываются первыми, остальные — за «ещё»
  * }} opts
  */
 export function categoryChips(opts) {
-  const top = opts.categories.filter((c) => c.kind === opts.kind && !c.archived && !c.parentId);
+  let top = opts.categories.filter((c) => c.kind === opts.kind && !c.archived && !c.parentId);
   const chips = el('div', { class: 'chips' });
+  /** @type {import('../repo/categories.js').Category[]} */
+  let rest = [];
+  if (opts.frequent?.length && top.length > opts.frequent.length + 1) {
+    const order = new Map(opts.frequent.map((id, i) => [id, i]));
+    const shown = top.filter((c) => order.has(c.id)).sort((a, b) => /** @type {number} */ (order.get(a.id)) - /** @type {number} */ (order.get(b.id)));
+    rest = top.filter((c) => !order.has(c.id));
+    top = shown;
+  }
   const sub = el('div', { class: 'chips chips-sub', hidden: true });
   const wrap = el('div', null, chips, sub);
 
@@ -38,8 +47,15 @@ export function categoryChips(opts) {
     opts.onSelect(c, label);
   }
 
-  for (const c of top) {
-    chips.append(el('button', { type: 'button', class: 'chip', 'data-id': c.id, onclick: () => pick(c) }, avatar(c.name, { small: true, income: opts.kind === 'income' }), c.name));
+  const chipOf = (/** @type {import('../repo/categories.js').Category} */ c) => el('button', { type: 'button', class: 'chip', 'data-id': c.id, onclick: () => pick(c) }, avatar(c.name, { small: true, income: opts.kind === 'income' }), c.name);
+  for (const c of top) chips.append(chipOf(c));
+  if (rest.length) {
+    const more = el('button', { type: 'button', class: 'chip chip-more', onclick: () => {
+      more.remove();
+      for (const c of rest) chips.append(chipOf(c));
+      rest = [];
+    } }, `ещё ${rest.length}`);
+    chips.append(more);
   }
 
   return {
@@ -50,6 +66,8 @@ export function categoryChips(opts) {
       if (!c) return;
       const parent = c.parentId ? opts.categories.find((x) => x.id === c.parentId) : c;
       if (!parent) return;
+      // Категория спрятана за «ещё» — раскрываем
+      if (!chips.querySelector(`[data-id="${parent.id}"]`)) /** @type {HTMLElement | null} */ (chips.querySelector('.chip-more'))?.click();
       pick(parent);
       if (c.parentId) /** @type {HTMLElement | null} */ (sub.querySelector(`[data-id="${c.id}"]`))?.click();
     },
