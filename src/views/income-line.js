@@ -110,7 +110,7 @@ export async function renderIncomeLine(root, category, month) {
         el('div', { class: 'amount-row' }, recAmount, recMoney.toggle),
         recMoney.preview,
         recMoney.rateField,
-        el('div', { class: 'add-row' }, recDate, el('button', { class: 'btn', type: 'button', onclick: addReceived }, 'Получил(а)')),
+        el('div', { class: 'add-row' }, recDate, el('button', { class: 'btn', type: 'button', onclick: addReceived }, 'Получила')),
       ),
     );
 

@@ -78,7 +78,7 @@ export async function renderSchedules(root) {
           el(
             'div',
             { class: 'row-actions' },
-            el('a', { class: 'link-btn', href: `#/operations/new?planned=${p.id}` }, p.type === 'income' ? 'Получил(а)' : 'Оплатил(а)'),
+            el('a', { class: 'link-btn', href: `#/operations/new?planned=${p.id}` }, p.type === 'income' ? 'Получила' : 'Оплатила'),
             linkBtn('Удалить', async () => {
               if (!(await confirmDialog(`Удалить «${p.name}»?`))) return;
               await deletePlanned(p.id);

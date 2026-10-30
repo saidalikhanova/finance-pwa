@@ -15,7 +15,7 @@ import { listPlanned } from './planned.js';
  * @property {string} categoryId
  * @property {'recurring' | 'planned'} source
  * @property {string} refId
- * @property {boolean} confirm — ждёт отметки («Оплатил(а)» / «Получил(а)»), а не записывается сам
+ * @property {boolean} confirm — ждёт отметки («Оплатила» / «Получила»), а не записывается сам
  */
 
 /**

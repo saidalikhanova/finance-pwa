@@ -12,7 +12,7 @@ import { shiftMonth } from './ui.js';
  * @property {number} amount — в минимальных единицах своей валюты
  * @property {'EUR' | 'KZT'} currency
  * @property {string} href
- * @property {string | null} pay — куда ведёт «Оплатил(а)» / «Получил(а)»; null — запишется сам
+ * @property {string | null} pay — куда ведёт «Оплатила» / «Получила»; null — запишется сам
  * @property {'recurring' | 'planned' | 'source' | 'debt'} kind
  */
 
@@ -24,13 +24,13 @@ const MONTHS_GEN = ['январь', 'февраль', 'март', 'апрель'
  *   month: string,
  *   upcoming: import('./repo/upcoming.js').Upcoming[],
  *   planned: import('./repo/planned.js').PlannedPayment[],
- *   sources: { category: import('./repo/categories.js').Category, lines: import('./repo/budgets.js').BudgetLine[] }[],
+ *   sources: { category: import('./repo/categories.js').Category, lines: import('./repo/budgets.js').BudgetLine[], settled?: boolean }[],
  *   debts: { debt: import('./repo/debts.js').Debt, remaining: number }[],
  *   loanCategories?: string[],
  * }} p
  *   upcoming — платежи с точной датой (повторяющиеся и разовые);
  *   planned — неполученные разовые записи месяца (берутся только «в течение месяца»);
- *   sources — источники дохода с их строками бюджета; debts — открытые долги с остатком;
+ *   sources — источники дохода с их строками бюджета (settled — зарплата за месяц уже получена, в список не попадает); debts — открытые долги с остатком;
  *   loanCategories — id категорий «Кредиты» (подпись «кредит»)
  * @returns {{ dated: CalEvent[], undated: CalEvent[] }}
  */
@@ -62,7 +62,8 @@ export function monthEvents(p) {
   }
 
   // Выплаты по источникам дохода: за этот месяц и за прошлый (если платят в следующем месяце)
-  for (const { category: c, lines } of p.sources) {
+  for (const { category: c, lines, settled } of p.sources) {
+    if (settled) continue;
     for (const m of [shiftMonth(p.month, -1), p.month]) {
       const eff = effectiveLine(lines, m);
       const orig = eff ? lineOriginal(eff.line) : null;

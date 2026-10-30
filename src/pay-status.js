@@ -31,5 +31,5 @@ export function payStatus(p, today) {
 
 /** Надпись на кнопке отметки. @param {'expense' | 'income'} type */
 export function markLabel(type) {
-  return type === 'income' ? 'Получил(а)' : 'Оплатил(а)';
+  return type === 'income' ? 'Получила' : 'Оплатила';
 }

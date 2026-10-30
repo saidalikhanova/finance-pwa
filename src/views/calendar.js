@@ -5,6 +5,7 @@ import { el, avatar, formatDate, currentMonth } from '../ui.js';
 import { formatMoney, formatWhole, toEurCents } from '../money.js';
 import { money } from '../display.js';
 import { monthEvents } from '../calendar-events.js';
+import { effectiveLine, lineOriginal, incomeDebt, convert } from '../income.js';
 import { isLoanCategory } from '../loans.js';
 import { payStatus, markLabel } from '../pay-status.js';
 import { listAllLines } from '../repo/budgets.js';
@@ -42,7 +43,18 @@ export async function loadMonth(month) {
   const today = todayISO();
   const rate = (await suggestRate(today))?.rate ?? null;
   const allLines = await listAllLines();
-  const sources = (await listCategories({ kind: 'income' })).map((category) => ({ category, lines: allLines.filter((l) => l.categoryId === category.id) }));
+  const incomeOps = await listOperations({ type: 'income' });
+  // Зарплата за месяц получена целиком и долга нет — в «Платежах» её больше не показываем
+  const sources = (await listCategories({ kind: 'income' })).map((category) => {
+    const lines = allLines.filter((l) => l.categoryId === category.id);
+    const ops = incomeOps.filter((o) => o.categoryId === category.id);
+    const eff = effectiveLine(lines, month);
+    const orig = eff ? lineOriginal(eff.line) : null;
+    const debt = incomeDebt({ lines, ops, upTo: month, rateNow: rate, today, terms: category });
+    const recMonth = orig ? ops.filter((o) => o.date.slice(0, 7) === month).reduce((s, o) => s + (o.currency === orig.currency ? o.amount : (convert(o.amount, o.currency, orig.currency, o.rate ?? rate) ?? 0)), 0) : 0;
+    const settled = Boolean(orig) && (debt?.debt ?? 0) <= 0 && recMonth >= /** @type {number} */ (orig?.amount);
+    return { category, lines, settled };
+  });
   const reps = await listRepayments();
   const debts = (await listDebts()).map((debt) => ({ debt, remaining: debtStatus(debt, reps, today, rate).remaining }));
   const { dated, undated } = monthEvents({

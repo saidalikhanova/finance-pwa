@@ -197,8 +197,8 @@ export async function renderBudget(root) {
       const right = debt && debt.debt > 0
         ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, debt.daysLate ? `просрочено ${debt.daysLate} дн.` : 'должны'))
         : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, money(f)), el('div', { class: 'muted small' }, 'получено'));
-      // «Получено» — как у ожидаемых поступлений: записать пришедшие деньги одним нажатием
-      if (orig) {
+      // «Получила» — только пока зарплата за этот месяц не получена целиком (или есть долг)
+      if (orig && ((debt?.debt ?? 0) > 0 || /** @type {number} */ (recMonth) < orig.amount)) {
         const date = month === today.slice(0, 7) ? today : `${month}-01`;
         right.append(el('a', { class: 'btn btn-small expected-btn', href: `#/add?type=income&category=${c.id}&currency=${orig.currency}&date=${date}` }, markLabel('income')));
       }
