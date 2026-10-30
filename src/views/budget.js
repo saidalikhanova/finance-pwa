@@ -25,6 +25,8 @@ export async function renderBudget(root) {
   await loadDisplay();
   const monthLabel = el('span', { class: 'month-label' }, formatMonth(budgetState.month));
   const body = el('div');
+  // Редкие действия (копирование месяца, убранные категории, желаемые) — за кнопкой «⋯ ещё»
+  const extras = el('div', { hidden: true });
 
   root.append(
     el(
@@ -34,7 +36,11 @@ export async function renderBudget(root) {
       monthLabel,
       el('button', { class: 'icon-btn', 'aria-label': 'Следующий месяц', onclick: () => go(1) }, '›'),
     ),
-    el('div', { class: 'display-row' }, el('span', { class: 'muted small' }, 'Показывать в'), displayToggle()),
+    el('div', { class: 'display-row' },
+      el('button', { class: 'link-btn', type: 'button', style: 'padding:0', onclick: () => { extras.hidden = !extras.hidden; } }, '⋯ ещё'),
+      el('span', { style: 'flex:1' }),
+      el('span', { class: 'muted small' }, 'в'), displayToggle()),
+    extras,
     body,
   );
 
@@ -47,6 +53,7 @@ export async function renderBudget(root) {
 
   async function refresh() {
     const month = budgetState.month;
+    extras.innerHTML = '';
     const [categories, lines, fact, months] = await Promise.all([
       listCategories({ includeArchived: true }),
       getBudget(month),
@@ -112,15 +119,14 @@ export async function renderBudget(root) {
       const prev = sources.find((m) => m < month) ?? sources[0];
       const select = el('select', { class: 'select', 'aria-label': 'Месяц-источник' }, ...sources.map((m) => el('option', { value: m }, formatMonth(m))));
       select.value = prev;
-      // Свёрнуто, чтобы не занимать место: раскрыто только у месяца без бюджета
-      body.append(
-        el('details', { class: 'card list-card', open: !lines.length },
-          el('summary', { class: 'muted' }, lines.length ? 'Скопировать бюджет из другого месяца' : 'На этот месяц бюджета ещё нет — скопировать из другого месяца?'),
-          el('div', { class: 'add-row', style: 'padding:8px 0 12px' }, select, el('button', { class: 'btn btn-small', onclick: () => doCopy(select.value) }, 'Скопировать')),
+      extras.append(
+        el('div', { class: 'card' },
+          el('div', { class: 'card-title' }, 'Скопировать бюджет из другого месяца'),
+          el('div', { class: 'add-row' }, select, el('button', { class: 'btn btn-small', onclick: () => doCopy(select.value) }, 'Скопировать')),
         ),
       );
-    } else if (!lines.length) {
-      body.append(el('p', { class: 'muted' }, 'Нажмите на категорию, чтобы задать план и лимит на месяц.'));
+      // У месяца без бюджета подсказываем сразу
+      if (!lines.length) extras.hidden = false;
     }
 
     // Итоги
@@ -206,7 +212,7 @@ export async function renderBudget(root) {
       incomeList.append(
         el('div', { class: 'row' },
           el('a', { href, style: 'display:contents' }, avatar(c.name, { income: true })),
-          el('a', { class: 'row-main', href, style: 'color:inherit;text-decoration:none' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), c.employer ? el('div', { class: 'small' }, c.employer) : el('div', { class: 'small muted' }, 'работодатель не указан'), el('div', { class: 'muted small' }, sub)),
+          el('a', { class: 'row-main', href, style: 'color:inherit;text-decoration:none' }, el('div', null, c.archived ? `${c.name} (архив)` : c.name), el('div', { class: 'muted small' }, c.employer ? `${c.employer} · ${sub}` : sub)),
           right,
         ),
       );
@@ -253,9 +259,8 @@ export async function renderBudget(root) {
           } }, 'Вернуть'),
         ));
       }
-      body.append(details);
+      extras.append(details);
     }
-
 
     // Желаемые покупки рядом с бюджетом (п. 4.14 ТЗ)
     const wishes = (await listWishes()).filter((w) => w.status === 'want');
@@ -300,7 +305,7 @@ export async function renderBudget(root) {
       for (const w of plannedWishes) {
         card.append(el('div', { class: 'cat-row muted small' }, el('span', { class: 'cat-name' }, `${w.name} — в плане месяца`), el('a', { class: 'link-btn', href: `#/wishes/${w.id}` }, '›')));
       }
-      body.append(card);
+      extras.append(card);
     }
 
     /** @param {string} from */
@@ -387,10 +392,8 @@ function expenseRow(c, line, fact, month, today, scheduled = '', opts = {}) {
   const row = el('a', { class: `row row-budget${opts.article ? ' row-article' : ''}`, href: `#/budget/${month}/${c.id}` }, el('div', { class: 'row-top' }, el('div', { style: 'display:flex;gap:12px;align-items:center;min-width:0' }, avatar(c.name, { small: opts.article }), main), amount));
 
   const notes = [];
-  if (opts.articles) notes.push(`статей: ${opts.articles}`);
+  // В строке — только план; подробности (остаток, в день, статьи) — на экране категории
   if (planned != null) notes.push(`план ${money(planned)}`);
-  else if (scheduled && !loan) notes.push(`по графику ${scheduled}`);
-  else if (scheduled) notes.push('по графику платежей');
 
   if (limit != null) {
     const s = limitStatus(limit, fact, month, today);
@@ -398,14 +401,8 @@ function expenseRow(c, line, fact, month, today, scheduled = '', opts = {}) {
     const bar = el('div', { class: `bar bar-${s.level}` }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, s.percent)}%` }));
     row.append(bar);
     if (s.remaining < 0) notes.push(`превышение ${money(-s.remaining)}`);
-    else {
-      notes.push(`осталось ${money(s.remaining)}`);
-      if (s.perDay != null) notes.push(`${money(s.perDay)} в день (${s.daysLeft} ${pluralDays(s.daysLeft)})`);
-    }
   } else if (loan) {
     amount.append(el('div', { class: 'muted small' }, scheduled ? `из ${scheduled}` : 'кредитов нет'));
-  } else if (!opts.article) {
-    amount.append(el('div', { class: 'muted small' }, 'лимит не задан'));
   }
   if (notes.length) row.append(el('div', { class: 'muted small' }, notes.join(' · ')));
   return row;

@@ -127,39 +127,46 @@ export async function renderBudgetLine(root, params) {
   const form = el(
     'form',
     { class: 'form', novalidate: true, onsubmit: onSubmit },
-    el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Валюта ввода'), toggle),
+    el('div', { class: 'row-top', style: 'margin-bottom:8px' }, el('div', { class: 'card-title', style: 'margin:0' }, 'План и лимит'), toggle),
     rateField,
     el('label', { class: 'field' }, plannedLabel, plannedInput, plannedPreview),
     ...(isExpense
-      ? [el('label', { class: 'field' }, limitLabel, limitInput, limitPreview, el('p', { class: 'muted small' }, 'Предупреждение при 80 % и при превышении. Пустое поле — без лимита.'))]
+      ? [el('label', { class: 'field' }, limitLabel, limitInput, limitPreview)]
       : []),
-    el('p', { class: 'muted small' }, isExpense
-      ? articles.length
-        ? 'План категории = планы статей + этот план «прочее» (траты без статьи). Лимит — на всю категорию вместе со статьями.'
-        : isArticle
-          ? 'План статьи — сколько ожидаете потратить; если поле пустое, план берётся из платежей статьи ниже. Факт — из записанных расходов по статье.'
-          : 'План — сколько ожидаете потратить; факт считается из записанных расходов.'
-      : 'Здесь — общий план, если не хотите расписывать по поступлениям. Поступления с датой добавляются к нему автоматически. Факт считается из полученных доходов.'),
+    el('p', { class: 'muted small' }, articles.length ? 'План категории = планы статей + этот план «прочее». Лимит — на всю категорию.' : 'Лимит — предупреждение при 80 % и при превышении.'),
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
   );
   // Единый порядок для любой категории и статьи:
   // шапка → план и лимит → статьи → платежи с датой → операции → убрать / вернуть
   const payments = await paymentsCard(category, month, loan);
   const hasPayments = payments.dataset.count !== '0';
-  const planOpen = !loan && (line?.planned != null || line?.limit != null || (!articles.length && !hasPayments));
   const planBlock = loan
     ? el('div', { class: 'card' }, el('p', { class: 'muted small', style: 'margin:0' }, 'План по кредитам считается сам — по графику платежей. Лимит для кредитов не нужен.'))
-    : el('details', { class: 'card list-card', open: planOpen }, el('summary', null, 'План и лимит'), form);
+    : el('div', { class: 'card' }, form);
+  // Статьи и платежи — карточками, только если они есть; иначе одна строка с кнопками добавления
+  const blocks = [];
+  if (isExpense && !isArticle && !loan && articles.length) blocks.push(await articlesCard(category, articles, month));
+  if (hasPayments || loan) blocks.push(payments);
+  if (!blocks.length || (!articles.length && !isArticle && !loan && !hasPayments)) {
+    const links = [];
+    if (!isArticle && !loan && !articles.length) links.push(el('button', { class: 'btn btn-secondary btn-small', type: 'button', onclick: addArticle(category, month) }, '+ Статья'));
+    if (!hasPayments && !loan) links.push(el('a', { class: 'btn btn-secondary btn-small', href: `#/payments/new?category=${categoryId}&confirm=1&from=budget${isArticle ? `&name=${encodeURIComponent(category.name)}` : ''}` }, '+ Платёж с датой'));
+    if (links.length) blocks.push(el('div', { class: 'btn-row' }, ...links));
+  }
+  const actions = el('details', { class: 'card list-card', style: 'margin-top:8px' }, el('summary', { class: 'muted' }, 'Ещё действия'),
+    el('div', { style: 'padding:8px 0 4px' },
+      line?.hidden
+        ? el('button', { class: 'btn btn-secondary btn-small', type: 'button', style: 'width:100%;margin-bottom:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`)
+        : el('button', { class: 'btn btn-secondary btn-small', type: 'button', style: 'width:100%;margin-bottom:8px', onclick: onRemove }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`),
+      ...(isArticle ? [articleActions(category, month)] : []),
+    ),
+  );
   root.append(
     header,
     planBlock,
-    ...(isExpense && !isArticle && !loan ? [await articlesCard(category, articles, month)] : []),
-    payments,
-    el('a', { class: 'btn btn-secondary', style: 'width:100%', href: `#/operations?month=${month}&category=${categoryId}` }, loan ? 'Все оплаты за месяц' : 'Операции за месяц'),
-    line?.hidden
-      ? el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRestore }, `Вернуть в бюджет: ${formatMonth(month).toLowerCase()}`)
-      : el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: onRemove }, `Убрать из бюджета: ${formatMonth(month).toLowerCase()}`),
-    ...(isArticle ? [articleActions(category, month)] : []),
+    ...blocks,
+    el('a', { class: 'btn btn-secondary', style: 'width:100%;margin-top:8px', href: `#/operations?month=${month}&category=${categoryId}` }, loan ? 'Все оплаты за месяц' : 'Операции за месяц'),
+    actions,
   );
 
   async function onRemove() {
@@ -269,17 +276,7 @@ async function articlesCard(category, articles, month) {
     }
     card.append(list, el('p', { class: 'small', style: 'margin:0 0 10px' }, `Планы статей: ${money(planSum)}`));
   }
-  card.append(el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%', onclick: async () => {
-    const name = await promptDialog(`Новая статья в «${category.name}»`, '');
-    if (!name?.trim()) return;
-    try {
-      const a = await createArticle(category.id, name);
-      toast(`Статья «${a.name}» добавлена`);
-      location.hash = `#/budget/${month}/${a.id}`;
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Ошибка', { error: true });
-    }
-  } }, '+ Статья'));
+  card.append(el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%', onclick: addArticle(category, month) }, '+ Статья'));
   return card;
 }
 
@@ -373,13 +370,32 @@ async function paymentsCard(c, month, loan) {
 }
 
 /**
+ * Обработчик «+ Статья»: спрашивает название и открывает новую статью.
+ * @param {import('../repo/categories.js').Category} category
+ * @param {string} month
+ */
+function addArticle(category, month) {
+  return async () => {
+    const name = await promptDialog(`Новая статья в «${category.name}»`, '');
+    if (!name?.trim()) return;
+    try {
+      const a = await createArticle(category.id, name);
+      toast(`Статья «${a.name}» добавлена`);
+      location.hash = `#/budget/${month}/${a.id}`;
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка', { error: true });
+    }
+  };
+}
+
+/**
  * Переименовать статью или убрать её в архив.
  * @param {import('../repo/categories.js').Category} article
  * @param {string} month
  */
 function articleActions(article, month) {
-  return el('div', { class: 'btn-row', style: 'margin-top:8px' },
-    el('button', { class: 'btn btn-secondary', type: 'button', onclick: async () => {
+  return el('div', { class: 'btn-row' },
+    el('button', { class: 'btn btn-secondary btn-small', type: 'button', onclick: async () => {
       const next = await promptDialog('Новое название статьи', article.name);
       if (next == null || next.trim() === article.name) return;
       try {
@@ -390,7 +406,7 @@ function articleActions(article, month) {
         toast(err instanceof Error ? err.message : 'Ошибка', { error: true });
       }
     } }, 'Переименовать статью'),
-    el('button', { class: 'btn btn-danger', type: 'button', onclick: async () => {
+    el('button', { class: 'btn btn-danger btn-small', type: 'button', onclick: async () => {
       if (!(await confirmDialog(`Убрать статью «${article.name}» в архив? Записанные расходы останутся в категории; вернуть можно в «Ещё → Категории».`, 'В архив'))) return;
       await setCategoryArchived(article.id, true);
       toast('Статья перенесена в архив');
