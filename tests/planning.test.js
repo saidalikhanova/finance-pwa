@@ -1,6 +1,7 @@
 import { test, assert } from './runner.js';
 import { openDatabase, deleteDatabase } from '../src/db.js';
-import { createPlanned, updatePlanned, listPlanned } from '../src/repo/planned.js';
+import { createPlanned, updatePlanned, listPlanned, getPlanned, markReceived } from '../src/repo/planned.js';
+import { createOperation, deleteOperation } from '../src/repo/operations.js';
 import { createWish, updateWish, deleteWish, listWishes, planWishes, getWish } from '../src/repo/wishes.js';
 import { getBudgetLine, setBudgetLine } from '../src/repo/budgets.js';
 import { createSchedule } from '../src/repo/recurring.js';
@@ -79,4 +80,17 @@ test('желаемые покупки: запись, перенос в бюдж�
   assert.equal(await getPhoto(photoId, db), undefined, 'фото удалено вместе с записью');
   assert.equal((await listWishes(db)).length, 2);
   db.close();
+});
+
+test('удаление операции-отметки снимает «получено» с ожидаемого поступления', async () => {
+  const db = await fresh();
+  const p = await createPlanned({ name: 'Проект', type: 'income', amount: 500_00, currency: 'EUR', categoryId: 'inc', dateKind: 'day', date: '2026-11-10' }, db);
+  const op = await createOperation({ type: 'income', amount: 500_00, currency: 'EUR', categoryId: 'inc', date: '2026-11-10' }, db);
+  await markReceived(p.id, { operationId: op.id, date: '2026-11-10', amount: 500_00 }, db);
+  assert.equal((await getPlanned(p.id, db))?.done, true);
+  await deleteOperation(op.id, db);
+  const after = await getPlanned(p.id, db);
+  assert.equal(after?.done, false, 'снова ждёт отметки');
+  assert.equal(after?.operationId, null);
+  assert.equal(after?.receivedDate, null);
 });

@@ -189,6 +189,10 @@ export async function renderIncomeLine(root, category, month) {
         return;
       }
       const date = recDate.value || today;
+      if (date > today) {
+        toast('Эта дата ещё не наступила. Отметьте поступление, когда деньги придут', { error: true });
+        return;
+      }
       await createOperation({ type: 'income', amount, currency: recMoney.currency, date, categoryId: category.id, comment: '', rate, rateSource: rate ? 'manual' : null });
       if (rate) await saveRate(date, rate);
       toast('Поступление записано');

@@ -333,6 +333,12 @@ export async function renderOperationForm(root, params, opts = {}) {
         return;
       }
     }
+    // Будущей датой записывать нельзя: факт — это то, что уже произошло
+    if (dateInput.value > todayISO()) {
+      toast(typeInput.value === 'income' ? 'Эта дата ещё не наступила. Отметьте поступление, когда деньги придут' : 'Эта дата ещё не наступила. Запишите расход, когда он произойдёт', { error: true });
+      dateInput.focus();
+      return;
+    }
     let photoId = existing?.photoId ?? null;
     try {
       if (removePhoto && photoId) {

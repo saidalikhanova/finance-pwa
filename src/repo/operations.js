@@ -121,6 +121,13 @@ export async function updateOperation(id, input, db) {
 export async function deleteOperation(id, db) {
   const d = db ?? (await getDb());
   await remove(d, 'operations', id);
+  // Если операция была отметкой «Получила» / «Оплатила» — платёж снова ждёт отметки
+  /** @type {import('./planned.js').PlannedPayment[]} */
+  const planned = await getAll(d, 'planned');
+  for (const p of planned) {
+    if (p.operationId !== id) continue;
+    await put(d, 'planned', { ...p, done: false, operationId: null, receivedDate: null, receivedAmount: null, updatedAt: new Date().toISOString() });
+  }
 }
 
 /**
