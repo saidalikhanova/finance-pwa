@@ -26,6 +26,7 @@ import { renderIncomeSource } from './views/income-source.js';
 import { renderDebt } from './views/debt.js';
 import { renderSettings } from './views/settings.js';
 import { renderSyncSettings } from './views/sync-settings.js';
+import { startSync } from './sync.js';
 import { generateDue } from './repo/recurring.js';
 import { todayISO } from './repo/operations.js';
 import { toast } from './ui.js';
@@ -79,7 +80,11 @@ seedDefaultCategories()
   .then((n) => {
     if (n) toast(`Создано операций по расписанию: ${n}`);
   })
-  .finally(() => start(root, titleEl, backEl));
+  .finally(() => {
+    start(root, titleEl, backEl);
+    // Общие данные: обмен с облаком, если подключено
+    startSync();
+  });
 
 if ('serviceWorker' in navigator) {
   // Новая версия приложения применяется сразу: когда новый сервис-воркер берёт

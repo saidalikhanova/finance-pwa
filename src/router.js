@@ -128,12 +128,26 @@ export async function renderCurrent(root, titleEl, backEl) {
   });
 }
 
+/** @type {(() => Promise<void>) | null} */
+let rerenderFn = null;
+
+/**
+ * Перерисовывает текущий экран (после получения записей из облака).
+ * Если пользователь что-то вводит — не трогаем, чтобы не потерять ввод.
+ */
+export function rerender() {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return Promise.resolve();
+  return rerenderFn ? rerenderFn() : Promise.resolve();
+}
+
 /**
  * @param {HTMLElement} root
  * @param {HTMLElement} titleEl
  * @param {HTMLAnchorElement} backEl
  */
 export function start(root, titleEl, backEl) {
+  rerenderFn = () => renderCurrent(root, titleEl, backEl);
   window.addEventListener('hashchange', () => renderCurrent(root, titleEl, backEl));
   document.querySelectorAll('[data-route]').forEach((tab) => tab.addEventListener('click', () => {
     // Нажатие на вкладку текущего экрана перехода не вызывает

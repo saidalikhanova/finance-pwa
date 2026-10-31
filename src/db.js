@@ -250,6 +250,32 @@ export function writeTx(db, stores) {
 function logChange(tx, store, key, deleted, updatedAt) {
   if (!isSynced(store, key) || !tx.objectStoreNames.contains('changes')) return;
   tx.objectStore('changes').put({ id: `${store}:${String(key)}`, store, key, deleted, updatedAt });
+  if (changeListener) tx.addEventListener('complete', () => changeListener?.(), { once: true });
+}
+
+/** @type {(() => void) | null} */
+let changeListener = null;
+/** Вызывается после каждой записи в журнал (обмен с облаком). @param {(() => void) | null} fn */
+export function setChangeListener(fn) {
+  changeListener = fn;
+}
+
+/**
+ * Очищает общие хранилища (подключение к семье «заменить мои записи общими»).
+ * Личные настройки и фото остаются.
+ * @param {IDBDatabase} db
+ */
+export async function wipeSynced(db) {
+  const tx = db.transaction([...SYNCED_STORES, 'changes'], 'readwrite');
+  for (const store of SYNCED_STORES) {
+    if (store === 'settings') {
+      for (const key of SYNCED_SETTINGS) tx.objectStore('settings').delete(key);
+    } else {
+      tx.objectStore(store).clear();
+    }
+  }
+  tx.objectStore('changes').clear();
+  await done(tx);
 }
 
 /**

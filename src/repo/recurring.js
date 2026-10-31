@@ -167,8 +167,9 @@ export async function generateDue(today, db) {
     for (const o of due) {
       if (s.confirm) {
         // Доход «с подтверждением»: создаётся ожидаемое поступление, а не операция
+        // id из расписания и даты: на двух телефонах получится одна и та же запись, а не две
         txPut(tx, 'planned', {
-          id: crypto.randomUUID(),
+          id: `${s.id}:${o.date}`,
           name: s.name,
           type: s.type,
           amount: s.amount,
@@ -188,7 +189,7 @@ export async function generateDue(today, db) {
       }
       const rate = s.currency === 'KZT' ? rates.get(o.date) ?? null : null;
       txPut(tx, 'operations', {
-        id: crypto.randomUUID(),
+        id: `${s.id}:${o.date}`,
         type: s.type,
         date: o.date,
         currency: s.currency,

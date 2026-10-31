@@ -21,6 +21,7 @@ import './articles.test.js';
 import './pay-status.test.js';
 import './plan.test.js';
 import './sync.test.js';
+import './sync-engine.test.js';
 import './debts.test.js';
 
 run();

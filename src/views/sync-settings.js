@@ -1,5 +1,6 @@
 import { el, toast, confirmDialog } from '../ui.js';
-import { getSyncConfig, ping, enableSync, disableSync, pendingCount } from '../sync.js';
+import { getSyncConfig, ping, enableSync, disableSync, pendingCount, syncNow } from '../sync.js';
+import { listOperations } from '../repo/operations.js';
 import { makeFamilyCode, encodeInvite, decodeInvite } from '../sync-config.js';
 
 /** Экран «Общие данные»: подключение к облаку, семейный код, код подключения. */
@@ -34,7 +35,7 @@ export async function renderSyncSettings(root) {
 
   async function create() {
     const c = { url: urlInput.value, key: keyInput.value, family: makeFamilyCode() };
-    await connect(c, 'Семейный код создан');
+    await connect(c, 'create', 'Семейный код создан');
   }
 
   async function join() {
@@ -45,16 +46,24 @@ export async function renderSyncSettings(root) {
       toast(err instanceof Error ? err.message : 'Неверный код', { error: true });
       return;
     }
-    await connect(c, 'Подключено к семье');
+    // Второй телефон: его записи заменяются записями семьи
+    const n = (await listOperations({})).length;
+    const text = n
+      ? `На этом телефоне уже есть записи (операций: ${n}). Они будут заменены общими записями семьи. Если они нужны — сначала сделайте резервную копию.`
+      : 'Записи семьи будут загружены на этот телефон.';
+    if (!(await confirmDialog(text, 'Подключиться'))) return;
+    await connect(c, 'join', 'Подключено к семье');
   }
 
-  /** @param {{ url: string, key: string, family: string }} c @param {string} okText */
-  async function connect(c, okText) {
+  /** @param {{ url: string, key: string, family: string }} c @param {'create' | 'join'} mode @param {string} okText */
+  async function connect(c, mode, okText) {
     try {
       toast('Проверяю связь…');
       await ping(c);
-      const n = await enableSync(c);
-      toast(`${okText}. Ожидают отправки: ${n}`);
+      await enableSync(c, { mode });
+      toast(`${okText}. Обмениваюсь с облаком…`);
+      const r = await syncNow();
+      toast(r ? `Готово: получено ${r.applied}, отправлено ${r.sent}` : okText);
       renderSyncSettings(root);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось подключиться', { error: true });
@@ -72,6 +81,7 @@ async function renderConnected(root, cfg) {
   const status = cfg.lastError
     ? el('span', { class: 'over' }, `ошибка: ${cfg.lastError}`)
     : cfg.lastAt ? `обновлено ${new Date(cfg.lastAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'обмен ещё не выполнялся';
+  // Экран обновляется сам после очередного обмена (см. router.rerender)
   root.append(
     el('div', { class: 'card list-card' },
       el('ul', { class: 'status-list' },
@@ -89,6 +99,7 @@ async function renderConnected(root, cfg) {
       el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'button', onclick: copyInvite }, 'Скопировать код подключения')),
     ),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
+      el('button', { class: 'btn', type: 'button', onclick: refresh }, 'Обновить сейчас'),
       el('button', { class: 'btn btn-secondary', type: 'button', onclick: check }, 'Проверить связь'),
       el('button', { class: 'btn btn-danger', type: 'button', onclick: disconnect }, 'Отключить'),
     ),
@@ -102,6 +113,16 @@ async function renderConnected(root, cfg) {
     } catch {
       toast('Не удалось скопировать — выделите текст и скопируйте вручную', { error: true });
     }
+  }
+
+  async function refresh() {
+    try {
+      const r = await syncNow();
+      toast(r ? `Получено ${r.applied}, отправлено ${r.sent}` : 'Обмен уже идёт');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Не удалось обменяться', { error: true });
+    }
+    renderSyncSettings(root);
   }
 
   async function check() {

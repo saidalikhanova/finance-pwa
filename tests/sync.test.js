@@ -67,7 +67,7 @@ test('общие данные: включение ставит в очередь
   await clearChanges(db);
   assert.equal(await pendingCount(db), 0);
   const cfg = { url: 'https://abc.supabase.co/', key: 'k'.repeat(30), family: makeFamilyCode() };
-  const n = await enableSync(cfg, db);
+  const n = await enableSync(cfg, { mode: 'create' }, db);
   assert.equal(n, 2, 'категория и курс; локальная настройка — нет');
   assert.equal(await pendingCount(db), 2);
   const saved = await getSyncConfig(db);
@@ -76,7 +76,7 @@ test('общие данные: включение ставит в очередь
   await disableSync(db);
   assert.equal(await getSyncConfig(db), null);
   assert.equal(await pendingCount(db), 0);
-  await assert.rejects(() => enableSync({ url: 'http://x', key: 'k'.repeat(30), family: makeFamilyCode() }, db), 'адрес без https');
+  await assert.rejects(() => enableSync({ url: 'http://x', key: 'k'.repeat(30), family: makeFamilyCode() }, {}, db), 'адрес без https');
 });
 
 test('общие данные: семейный код и код подключения', async () => {
