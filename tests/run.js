@@ -20,6 +20,7 @@ import './loans.test.js';
 import './articles.test.js';
 import './pay-status.test.js';
 import './plan.test.js';
+import './sync.test.js';
 import './debts.test.js';
 
 run();

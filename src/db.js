@@ -185,9 +185,130 @@ export const MIGRATIONS = [
       };
     },
   },
+  {
+    version: 14,
+    upgrade(db, tx) {
+      // Общие данные для семьи: журнал изменений (что отправить в облако)
+      // и отметка времени updatedAt у каждой записи — чтобы при слиянии побеждала последняя правка.
+      db.createObjectStore('changes', { keyPath: 'id' });
+      const now = new Date().toISOString();
+      for (const store of ['categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'products', 'debts']) {
+        const req = tx.objectStore(store).openCursor();
+        req.onsuccess = () => {
+          const cur = req.result;
+          if (!cur) return;
+          const v = cur.value;
+          if (!v.updatedAt) cur.update({ ...v, updatedAt: v.createdAt ?? now });
+          cur.continue();
+        };
+      }
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+
+// ---- Общие данные: какие хранилища уходят в облако и журнал изменений ----
+
+/** Хранилища, записи которых синхронизируются между телефонами (фото — нет). */
+export const SYNCED_STORES = ['categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'products', 'debts', 'settings'];
+/** Настройки, общие для семьи; остальные (напоминания, валюта показа, подключение) — свои на каждом телефоне. */
+export const SYNCED_SETTINGS = new Set(['banks', 'categoriesSeeded', 'forecastMonths', 'overbuyPercent']);
+/** @type {Record<string, string>} */
+const KEY_PATH = { settings: 'key', rates: 'date' };
+
+/** Ключ записи хранилища. @param {string} store @param {any} value */
+export function keyOf(store, value) {
+  return value[KEY_PATH[store] ?? 'id'];
+}
+
+/** Нужно ли записывать изменение в журнал. @param {string} store @param {IDBValidKey} key */
+export function isSynced(store, key) {
+  if (!SYNCED_STORES.includes(store)) return false;
+  return store === 'settings' ? SYNCED_SETTINGS.has(String(key)) : true;
+}
+
+/**
+ * Транзакция на запись: к хранилищам добавляется журнал изменений, если он есть в базе.
+ * @param {IDBDatabase} db
+ * @param {string | string[]} stores
+ */
+export function writeTx(db, stores) {
+  const list = Array.isArray(stores) ? [...stores] : [stores];
+  if (db.objectStoreNames.contains('changes') && !list.includes('changes')) list.push('changes');
+  return db.transaction(list, 'readwrite');
+}
+
+/**
+ * Запись в журнал изменений (внутри транзакции с хранилищем 'changes').
+ * @param {IDBTransaction} tx
+ * @param {string} store
+ * @param {IDBValidKey} key
+ * @param {boolean} deleted
+ * @param {string} updatedAt
+ */
+function logChange(tx, store, key, deleted, updatedAt) {
+  if (!isSynced(store, key) || !tx.objectStoreNames.contains('changes')) return;
+  tx.objectStore('changes').put({ id: `${store}:${String(key)}`, store, key, deleted, updatedAt });
+}
+
+/**
+ * Кладёт запись и отмечает её в журнале; у синхронизируемых записей обновляет updatedAt.
+ * @template {object} T
+ * @param {IDBTransaction} tx
+ * @param {string} store
+ * @param {T} value
+ * @returns {T}
+ */
+export function txPut(tx, store, value) {
+  const key = keyOf(store, value);
+  const now = new Date().toISOString();
+  const v = isSynced(store, key) ? { ...value, updatedAt: now } : value;
+  tx.objectStore(store).put(v);
+  logChange(tx, store, key, false, now);
+  return v;
+}
+
+/**
+ * Удаляет запись и отмечает удаление в журнале.
+ * @param {IDBTransaction} tx
+ * @param {string} store
+ * @param {IDBValidKey} key
+ */
+export function txDelete(tx, store, key) {
+  tx.objectStore(store).delete(key);
+  logChange(tx, store, key, true, new Date().toISOString());
+}
+
+/**
+ * Помечает все записи синхронизируемых хранилищ как изменённые — при включении общих данных,
+ * чтобы отправить в облако всё, что уже есть на телефоне.
+ * @param {IDBDatabase} db
+ * @returns {Promise<number>} — сколько записей отмечено
+ */
+export async function enqueueAll(db) {
+  const tx = writeTx(db, SYNCED_STORES);
+  let n = 0;
+  for (const store of SYNCED_STORES) {
+    /** @type {any[]} */
+    const rows = await promisify(tx.objectStore(store).getAll());
+    for (const v of rows) {
+      const key = keyOf(store, v);
+      if (!isSynced(store, key)) continue;
+      logChange(tx, store, key, false, v.updatedAt ?? new Date().toISOString());
+      n++;
+    }
+  }
+  await done(tx);
+  return n;
+}
+
+/** Очищает журнал изменений (при отключении общих данных). @param {IDBDatabase} db */
+export async function clearChanges(db) {
+  const tx = db.transaction('changes', 'readwrite');
+  tx.objectStore('changes').clear();
+  await done(tx);
+}
 
 /** @type {Promise<IDBDatabase> | null} */
 let dbPromise = null;
@@ -290,10 +411,18 @@ export function getOne(db, store, key) {
  * @param {IDBDatabase} db
  * @param {string} store
  * @param {object} value
+ * @param {{ raw?: boolean }} [opts]
  */
-export async function put(db, store, value) {
-  const tx = db.transaction(store, 'readwrite');
-  tx.objectStore(store).put(value);
+export async function put(db, store, value, opts = {}) {
+  // raw — запись пришла из облака: журнал и updatedAt не трогаем
+  if (opts.raw) {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(value);
+    await done(tx);
+    return;
+  }
+  const tx = writeTx(db, store);
+  txPut(tx, store, value);
   await done(tx);
 }
 
@@ -301,10 +430,17 @@ export async function put(db, store, value) {
  * @param {IDBDatabase} db
  * @param {string} store
  * @param {IDBValidKey} key
+ * @param {{ raw?: boolean }} [opts]
  */
-export async function remove(db, store, key) {
-  const tx = db.transaction(store, 'readwrite');
-  tx.objectStore(store).delete(key);
+export async function remove(db, store, key, opts = {}) {
+  if (opts.raw) {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(key);
+    await done(tx);
+    return;
+  }
+  const tx = writeTx(db, store);
+  txDelete(tx, store, key);
   await done(tx);
 }
 
@@ -335,8 +471,8 @@ export async function getSetting(key, db) {
  */
 export async function setSetting(key, value, db) {
   const d = db ?? (await getDb());
-  const tx = d.transaction('settings', 'readwrite');
-  tx.objectStore('settings').put({ key, value });
+  const tx = writeTx(d, 'settings');
+  txPut(tx, 'settings', { key, value });
   await done(tx);
 }
 

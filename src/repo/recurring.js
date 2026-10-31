@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, remove, promisify, done } from '../db.js';
+import { getDb, getAll, getOne, put, remove, promisify, done, writeTx, txPut, txDelete } from '../db.js';
 import { toEurCents } from '../money.js';
 import { dueOccurrences, isExhausted, occurrences } from '../recurring.js';
 import { suggestRate } from './rates.js';
@@ -162,13 +162,12 @@ export async function generateDue(today, db) {
       for (const o of due) rates.set(o.date, (await suggestRate(o.date, d))?.rate ?? null);
     }
 
-    const tx = d.transaction(['operations', 'recurring', 'planned'], 'readwrite');
-    const ops = tx.objectStore('operations');
+    const tx = writeTx(d, ['operations', 'recurring', 'planned']);
     const now = new Date().toISOString();
     for (const o of due) {
       if (s.confirm) {
         // Доход «с подтверждением»: создаётся ожидаемое поступление, а не операция
-        tx.objectStore('planned').put({
+        txPut(tx, 'planned', {
           id: crypto.randomUUID(),
           name: s.name,
           type: s.type,
@@ -188,7 +187,7 @@ export async function generateDue(today, db) {
         continue;
       }
       const rate = s.currency === 'KZT' ? rates.get(o.date) ?? null : null;
-      ops.put({
+      txPut(tx, 'operations', {
         id: crypto.randomUUID(),
         type: s.type,
         date: o.date,
@@ -213,7 +212,7 @@ export async function generateDue(today, db) {
       updatedAt: now,
     };
     if (isExhausted(next)) next.status = 'finished';
-    tx.objectStore('recurring').put(next);
+    txPut(tx, 'recurring', next);
     await done(tx);
     created += due.length;
   }

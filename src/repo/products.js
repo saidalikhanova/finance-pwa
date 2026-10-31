@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, promisify, done } from '../db.js';
+import { getDb, getAll, getOne, put, promisify, done, writeTx, txPut, txDelete } from '../db.js';
 
 /**
  * @typedef {Object} Product
@@ -59,8 +59,7 @@ export async function ensureProducts(wanted, db) {
   const existing = await listProducts(d);
   for (const p of existing) result.set(p.nameLower, p);
 
-  const tx = d.transaction('products', 'readwrite');
-  const store = tx.objectStore('products');
+  const tx = writeTx(d, 'products');
   const now = new Date().toISOString();
   for (const w of wanted) {
     const name = normalizeName(w.name);
@@ -68,7 +67,7 @@ export async function ensureProducts(wanted, db) {
     if (!name || result.has(key)) continue;
     /** @type {Product} */
     const p = { id: crypto.randomUUID(), name, nameLower: key, unit: w.unit, categoryId: w.categoryId, createdAt: now };
-    store.add(p);
+    txPut(tx, 'products', p);
     result.set(key, p);
   }
   await done(tx);
@@ -86,9 +85,9 @@ export async function saveProduct(product, db) {
   if (!name) throw new Error('Укажите название продукта');
   const dup = await findProductByName(name, d);
   if (dup && dup.id !== product.id) throw new Error('Продукт с таким названием уже есть — используйте объединение');
-  const tx = d.transaction(['products', 'operations'], 'readwrite');
-  tx.objectStore('products').put({ ...product, name, nameLower: name.toLowerCase() });
-  await renameInOperations(tx.objectStore('operations'), product.id, product.id, name);
+  const tx = writeTx(d, ['products', 'operations']);
+  txPut(tx, 'products', { ...product, name, nameLower: name.toLowerCase() });
+  await renameInOperations(tx, product.id, product.id, name);
   await done(tx);
 }
 
@@ -105,27 +104,27 @@ export async function mergeProducts(fromId, intoId, db) {
   if (fromId === intoId) throw new Error('Выберите другой продукт');
   const into = await getProduct(intoId, d);
   if (!into || !(await getProduct(fromId, d))) throw new Error('Продукт не найден');
-  const tx = d.transaction(['products', 'operations'], 'readwrite');
-  const changed = await renameInOperations(tx.objectStore('operations'), fromId, intoId, into.name);
-  tx.objectStore('products').delete(fromId);
+  const tx = writeTx(d, ['products', 'operations']);
+  const changed = await renameInOperations(tx, fromId, intoId, into.name);
+  txDelete(tx, 'products', fromId);
   await done(tx);
   return changed;
 }
 
 /**
- * @param {IDBObjectStore} ops
+ * @param {IDBTransaction} tx
  * @param {string} fromId
  * @param {string} toId
  * @param {string} name
  */
-async function renameInOperations(ops, fromId, toId, name) {
+async function renameInOperations(tx, fromId, toId, name) {
   /** @type {import('./operations.js').Operation[]} */
-  const all = await promisify(ops.getAll());
+  const all = await promisify(tx.objectStore('operations').getAll());
   let changed = 0;
   for (const op of all) {
     if (!op.items?.some((it) => it.productId === fromId)) continue;
     const items = op.items.map((it) => (it.productId === fromId ? { ...it, productId: toId, name } : it));
-    ops.put({ ...op, items });
+    txPut(tx, 'operations', { ...op, items });
     changed += items.filter((it) => it.productId === toId).length;
   }
   return changed;

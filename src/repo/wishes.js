@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, remove, done } from '../db.js';
+import { getDb, getAll, getOne, put, remove, done, writeTx, txPut, txDelete } from '../db.js';
 
 /**
  * @typedef {'want' | 'planned' | 'bought'} WishStatus
@@ -104,8 +104,8 @@ export async function updateWish(id, input, db) {
 export async function deleteWish(id, db) {
   const d = db ?? (await getDb());
   const w = await getWish(id, d);
-  const tx = d.transaction(['wishes', 'photos'], 'readwrite');
-  tx.objectStore('wishes').delete(id);
+  const tx = writeTx(d, ['wishes', 'photos']);
+  txDelete(tx, 'wishes', id);
   if (w?.photoId) tx.objectStore('photos').delete(w.photoId);
   await done(tx);
 }
@@ -141,7 +141,7 @@ export async function listWishes(db) {
 export async function planWishes(ids, month, priceEur, db) {
   const d = db ?? (await getDb());
   const wishes = (await listWishes(d)).filter((w) => ids.includes(w.id));
-  const tx = d.transaction(['wishes', 'budgets'], 'readwrite');
+  const tx = writeTx(d, ['wishes', 'budgets']);
   const budgets = tx.objectStore('budgets');
   const now = new Date().toISOString();
   let moved = 0;
@@ -155,7 +155,7 @@ export async function planWishes(ids, month, priceEur, db) {
       continue;
     }
     add.set(w.categoryId, (add.get(w.categoryId) ?? 0) + eur);
-    tx.objectStore('wishes').put({ ...w, status: 'planned', plannedMonth: month, updatedAt: now });
+    txPut(tx, 'wishes', { ...w, status: 'planned', plannedMonth: month, updatedAt: now });
     moved++;
   }
   for (const [categoryId, eur] of add) {
@@ -163,7 +163,7 @@ export async function planWishes(ids, month, priceEur, db) {
     const req = budgets.get(id);
     req.onsuccess = () => {
       const line = req.result ?? { id, month, categoryId, planned: null, limit: null };
-      budgets.put({ ...line, planned: (line.planned ?? 0) + eur, updatedAt: now });
+      txPut(tx, 'budgets', { ...line, planned: (line.planned ?? 0) + eur, updatedAt: now });
     };
   }
   await done(tx);

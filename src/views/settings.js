@@ -14,7 +14,12 @@ export async function renderSettings(root) {
   const monthsInput = el('input', { class: 'input input-sm', type: 'number', min: 1, max: 12, value: forecastMonths });
   const overbuyInput = el('input', { class: 'input input-sm', type: 'number', min: 1, max: 500, value: overbuy });
 
+  const sync = await getSetting('sync');
   root.append(
+    el('h2', { class: 'section-title' }, 'Общие данные'),
+    el('div', { class: 'card list-card' },
+      el('a', { class: 'menu-row', href: '#/sync' }, el('span', null, 'Общие данные для семьи', el('div', { class: 'muted small' }, sync?.url ? 'включены' : 'не подключены — вести записи вдвоём')), el('span', { class: 'muted' }, '›')),
+    ),
     el('h2', { class: 'section-title' }, 'Напоминание о резервной копии'),
     el('div', { class: 'card list-card' },
       el('label', { class: 'cat-row' }, enabledBox, el('span', { class: 'cat-name' }, 'Показывать напоминание на главной')),

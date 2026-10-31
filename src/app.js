@@ -25,6 +25,7 @@ import { renderDebts } from './views/debts.js';
 import { renderIncomeSource } from './views/income-source.js';
 import { renderDebt } from './views/debt.js';
 import { renderSettings } from './views/settings.js';
+import { renderSyncSettings } from './views/sync-settings.js';
 import { generateDue } from './repo/recurring.js';
 import { todayISO } from './repo/operations.js';
 import { toast } from './ui.js';
@@ -60,6 +61,7 @@ register('/debts/new', { title: 'Новый долг', back: '/debts', tab: '/pa
 register('/debts/:id', { title: 'Долг', back: '/debts', tab: '/payments', render: renderDebt });
 register('/backup', { title: 'Резервная копия', back: '/more', tab: '/more', render: renderBackup });
 register('/settings', { title: 'Настройки', back: '/more', tab: '/more', render: renderSettings });
+register('/sync', { title: 'Общие данные', back: '/settings', tab: '/more', render: renderSyncSettings });
 register('/wishes/new', { title: 'Новая запись', back: '/wishes', tab: '/more', render: renderWishForm });
 register('/wishes/:id', { title: 'Желаемая покупка', back: '/wishes', tab: '/more', render: renderWishForm });
 register('/reports', { title: 'Отчёты', back: '/more', tab: '/more', render: renderReports });

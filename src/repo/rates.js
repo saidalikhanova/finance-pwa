@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, remove, promisify, done } from '../db.js';
+import { getDb, getAll, getOne, put, remove, promisify, done, writeTx, txPut, txDelete } from '../db.js';
 import { toEurCents } from '../money.js';
 
 // Курсы тенге к евро по датам. По решению пользователя (см. PROGRESS.md, этап 3)
@@ -66,7 +66,7 @@ export async function saveRate(date, rate, db) {
  * @param {IDBDatabase} db
  */
 async function applyRateToOperations(date, rate, db) {
-  const tx = db.transaction('operations', 'readwrite');
+  const tx = writeTx(db, 'operations');
   const store = tx.objectStore('operations');
   /** @type {import('./operations.js').Operation[]} */
   const ops = await promisify(store.index('date').getAll(date));
@@ -74,7 +74,7 @@ async function applyRateToOperations(date, rate, db) {
   const now = new Date().toISOString();
   for (const op of ops) {
     if (op.currency !== 'KZT' || op.rate) continue;
-    store.put({ ...op, rate, rateSource: 'manual', amountEur: toEurCents(op.amount, 'KZT', rate), updatedAt: now });
+    txPut(tx, 'operations', { ...op, rate, rateSource: 'manual', amountEur: toEurCents(op.amount, 'KZT', rate), updatedAt: now });
     updated++;
   }
   await done(tx);

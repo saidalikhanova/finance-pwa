@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, remove, promisify, done } from '../db.js';
+import { getDb, getAll, getOne, put, remove, promisify, done, writeTx, txPut, txDelete } from '../db.js';
 import { effectiveLine } from '../income.js';
 
 /**
@@ -163,14 +163,14 @@ export async function copyBudget(from, to, db) {
   const source = await getBudget(from, d);
   if (!source.length) throw new Error('В исходном месяце нет бюджета');
 
-  const tx = d.transaction('budgets', 'readwrite');
+  const tx = writeTx(d, 'budgets');
   const store = tx.objectStore('budgets');
   /** @type {BudgetLine[]} */
   const existing = await promisify(store.index('month').getAll(to));
-  for (const line of existing) store.delete(line.id);
+  for (const line of existing) txDelete(tx, 'budgets', line.id);
   const now = new Date().toISOString();
   for (const line of source) {
-    store.put({ ...line, id: lineId(to, line.categoryId), month: to, updatedAt: now });
+    txPut(tx, 'budgets', { ...line, id: lineId(to, line.categoryId), month: to, updatedAt: now });
   }
   await done(tx);
   return source.length;

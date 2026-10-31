@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, promisify, done } from '../db.js';
+import { getDb, getAll, getOne, put, promisify, done, writeTx, txPut, txDelete } from '../db.js';
 import { createOperation, listOperations } from './operations.js';
 import { listCategories, createCategory } from './categories.js';
 
@@ -118,12 +118,12 @@ export async function listRepayments(db) {
  */
 export async function deleteDebt(id, db) {
   const d = db ?? (await getDb());
-  const tx = d.transaction(['debts', 'operations'], 'readwrite');
-  tx.objectStore('debts').delete(id);
+  const tx = writeTx(d, ['debts', 'operations']);
+  txDelete(tx, 'debts', id);
   const ops = tx.objectStore('operations');
   /** @type {any[]} */
   const all = await promisify(ops.getAll());
-  for (const o of all) if (o.debtId === id) ops.put({ ...o, debtId: null });
+  for (const o of all) if (o.debtId === id) txPut(tx, 'operations', { ...o, debtId: null });
   await done(tx);
 }
 

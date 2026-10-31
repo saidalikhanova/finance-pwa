@@ -1,4 +1,4 @@
-import { getDb, getAll, getOne, put, count, getSetting, setSetting } from '../db.js';
+import { getDb, getAll, getOne, put, count, getSetting, setSetting, writeTx, txPut, txDelete } from '../db.js';
 
 /** @typedef {'expense' | 'income'} Kind */
 
@@ -52,15 +52,14 @@ export async function seedDefaultCategories(db) {
   const d = db ?? (await getDb());
   if (await getSetting(SEEDED_KEY, d)) return false;
 
-  const tx = d.transaction(['categories', 'settings'], 'readwrite');
-  const store = tx.objectStore('categories');
+  const tx = writeTx(d, ['categories', 'settings']);
   const now = new Date().toISOString();
   for (const kind of /** @type {Kind[]} */ (['expense', 'income'])) {
     DEFAULT_CATEGORIES[kind].forEach((name, order) => {
-      store.add({ id: crypto.randomUUID(), name, kind, archived: false, order, createdAt: now, parentId: null });
+      txPut(tx, 'categories', { id: crypto.randomUUID(), name, kind, archived: false, order, createdAt: now, parentId: null });
     });
   }
-  tx.objectStore('settings').put({ key: SEEDED_KEY, value: true });
+  txPut(tx, 'settings', { key: SEEDED_KEY, value: true });
   await new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve(undefined);
     tx.onerror = () => reject(tx.error);
