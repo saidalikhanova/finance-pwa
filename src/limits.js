@@ -3,7 +3,7 @@
 
 import { formatMoney, divRound } from './money.js';
 
-/** Порог предупреждения, % от лимита. */
+/** Порог предупреждения, % от лимита (лимит категории — её план на месяц). */
 export const WARN_PERCENT = 80;
 
 /**
@@ -65,7 +65,7 @@ export function limitStatus(limit, spent, month, today) {
  */
 export function limitMessage(categoryName, s) {
   if (s.remaining < 0) {
-    return `${categoryName}: лимит ${formatMoney(s.limit, 'EUR')} превышен на ${formatMoney(-s.remaining, 'EUR')}`;
+    return `${categoryName}: план ${formatMoney(s.limit, 'EUR')} превышен на ${formatMoney(-s.remaining, 'EUR')}`;
   }
   let msg = `${categoryName}: осталось ${formatMoney(s.remaining, 'EUR')} из ${formatMoney(s.limit, 'EUR')}`;
   if (s.daysLeft > 0) {

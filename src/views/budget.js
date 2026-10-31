@@ -15,6 +15,7 @@ import { scheduledInMonth, isLoanCategory } from '../loans.js';
 import { childrenOf, rollup } from '../category-tree.js';
 import { payStatus, markLabel } from '../pay-status.js';
 import { toEurCents } from '../money.js';
+import { monthPlans } from '../plan.js';
 
 // Месяц сохраняется между переходами, чтобы после правки строки
 // вернуться к тому же месяцу.
@@ -66,7 +67,9 @@ export async function renderBudget(root) {
     const rate = (await suggestRate(today))?.rate ?? null;
     // Платежи по расписанию (кредиты и др.) в этом месяце — план расходов «по графику»
     const schedules = await listSchedules();
-    const scheduledEur = (/** @type {string} */ catId) => scheduledInMonth(schedules, catId, month).reduce((sum, { s }) => sum + (toEurCents(s.amount, s.currency, rate) ?? 0), 0);
+    // Планы категорий и статей (вручную, по графику, разовые) — общий расчёт; план служит и лимитом
+    const plans = await monthPlans(month, categories, { fact });
+    const { scheduledEur, own: ownPlan, total: totalPlan, articlesOf } = plans;
     // Подпись «по графику»: в валюте показа, а без курса — в валютах платежей
     const scheduledLabel = (/** @type {string} */ catId) => {
       const items = scheduledInMonth(schedules, catId, month);
@@ -77,33 +80,8 @@ export async function renderBudget(root) {
       for (const { s } of items) by.set(s.currency, (by.get(s.currency) ?? 0) + s.amount);
       return [...by].map(([c, a]) => formatWhole(a, c)).join(' + ');
     };
-    const { from, to } = monthRange(month);
-    // Разовые платежи месяца (не из расписания) — тоже план своей категории / статьи
-    const oneOff = (await listPlanned({ from, to, includeDone: true, type: 'expense' })).filter((p) => !p.recurringId);
-    const oneOffEur = (/** @type {string} */ catId) => oneOff.filter((p) => p.categoryId === catId).reduce((sum, p) => sum + (toEurCents(p.amount, p.currency, rate) ?? 0), 0);
-    /**
-     * Свой план категории или статьи (без статей внутри): введённый вручную,
-     * иначе — платежи по графику и разовые; null — плана нет.
-     * @param {import('../repo/categories.js').Category} c
-     */
-    const ownPlan = (c) => {
-      if (isLoanCategory(c)) return scheduledEur(c.id) || null;
-      const line = byCat.get(c.id);
-      if (line?.hidden) return null;
-      if (line?.planned != null) return line.planned;
-      return scheduledEur(c.id) + oneOffEur(c.id) || null;
-    };
-    /** Статьи категории, которые стоит показать в этом месяце. @param {string} id */
-    const articlesOf = (id) => childrenOf(categories, id, { includeArchived: true }).filter((k) => !k.archived || byCat.get(k.id) || fact.get(k.id));
-    /**
-     * План категории = её собственный план («прочее», без статьи) + планы статей.
-     * @param {import('../repo/categories.js').Category} c
-     */
-    const totalPlan = (c) => {
-      const parts = [ownPlan(c), ...articlesOf(c.id).map(ownPlan)].filter((v) => v != null);
-      return parts.length ? parts.reduce((a, b) => /** @type {number} */ (a) + /** @type {number} */ (b), 0) : null;
-    };
     const factWithArticles = rollup(fact, categories);
+    const { from, to } = monthRange(month);
     const monthIncome = await listPlanned({ from, to, includeDone: true, type: 'income' });
     const exp = incomeExpectations(monthIncome, month, (p) => toEurCents(p.amount, p.currency, rate));
     // В текущем месяце показываем и задержанные с прошлых месяцев
@@ -384,17 +362,16 @@ function totalRow(label, plan, fact, cls = '', signed = false) {
 function expenseRow(c, line, fact, month, today, scheduled = '', opts = {}) {
   const name = c.archived ? `${c.name} (архив)` : c.name;
   const loan = isLoanCategory(c);
-  const limit = loan ? null : line?.limit ?? null;
+  // План — он же лимит: полоса и проценты считаются от плана
   const planned = loan ? null : opts.plan !== undefined ? opts.plan : line?.planned ?? null;
+  const limit = planned;
 
   const main = el('div', { class: 'row-main' }, el('div', null, name));
   const amount = el('div', { class: 'row-amount' }, el('div', null, money(fact)));
   const row = el('a', { class: `row row-budget${opts.article ? ' row-article' : ''}`, href: `#/budget/${month}/${c.id}` }, el('div', { class: 'row-top' }, el('div', { style: 'display:flex;gap:12px;align-items:center;min-width:0' }, avatar(c.name, { small: opts.article }), main), amount));
 
   const notes = [];
-  // В строке — только план; подробности (остаток, в день, статьи) — на экране категории
-  if (planned != null) notes.push(`план ${money(planned)}`);
-
+  // В строке — только полоса от плана; подробности (остаток, в день, статьи) — на экране категории
   if (limit != null) {
     const s = limitStatus(limit, fact, month, today);
     amount.append(el('div', { class: `small ${s.level === 'ok' ? 'muted' : s.level === 'warn' ? 'warn' : 'over'}` }, `${s.percent} % из ${money(limit)}`));

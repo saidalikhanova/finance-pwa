@@ -11,6 +11,7 @@ import { listOperations, monthRange, sumByCategory, todayISO } from '../repo/ope
 import { listCategories } from '../repo/categories.js';
 import { summary } from '../reports.js';
 import { rollup, fullName } from '../category-tree.js';
+import { monthPlans } from '../plan.js';
 import { limitStatus } from '../limits.js';
 import { addDays } from '../dates.js';
 import { suggestRate } from '../repo/rates.js';
@@ -38,20 +39,21 @@ export async function renderHome(root) {
   const [monthOps, budget, categories] = await Promise.all([listOperations(monthRange(month)), getBudget(month), listCategories({ includeArchived: true })]);
   const byId = new Map(categories.map((c) => [c.id, c]));
   const s = summary(monthOps);
-  // У категории расходы — вместе со статьями (лимит категории — на всё)
+  // У категории расходы — вместе со статьями; лимит категории — её план (со статьями)
   const spentBy = rollup(await sumByCategory(month, db), categories);
+  const plans = await monthPlans(month, categories, { fact: spentBy, db });
   let limitTotal = 0;
   let limitSpent = 0;
   /** @type {{ name: string, percent: number, over: boolean, href: string }[]} */
   const tightLimits = [];
-  for (const line of budget) {
-    if (line.limit == null) continue;
-    const cat = byId.get(line.categoryId);
-    if (cat?.kind !== 'expense') continue;
-    limitTotal += line.limit;
-    const spent = spentBy.get(line.categoryId) ?? 0;
+  for (const cat of categories) {
+    if (cat.kind !== 'expense' || cat.parentId) continue;
+    const limit = plans.limit(cat);
+    if (limit == null) continue;
+    limitTotal += limit;
+    const spent = spentBy.get(cat.id) ?? 0;
     limitSpent += spent;
-    const st = limitStatus(line.limit, spent, month, today);
+    const st = limitStatus(limit, spent, month, today);
     if (st.level !== 'ok') tightLimits.push({ name: fullName(cat, byId), percent: st.percent, over: st.level === 'over', href: `#/budget/${month}/${cat.id}` });
   }
   const hero = el('div', { class: 'card hero' },
@@ -69,7 +71,7 @@ export async function renderHome(root) {
     hero.append(
       el('div', { class: `bar bar-${st.level}`, style: 'margin-top:10px' }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, st.percent)}%` })),
       el('div', { class: `small ${st.level === 'ok' ? 'muted' : st.level === 'warn' ? 'warn' : 'over'}` },
-        `Лимиты: ${money(limitSpent)} из ${money(limitTotal)} · ${st.remaining < 0 ? `превышены на ${money(-st.remaining)}` : st.perDay != null ? `можно сегодня ${money(st.perDay)}` : `осталось ${money(st.remaining)}`}`),
+        `План: ${money(limitSpent)} из ${money(limitTotal)} · ${st.remaining < 0 ? `превышены на ${money(-st.remaining)}` : st.perDay != null ? `можно сегодня ${money(st.perDay)}` : `осталось ${money(st.remaining)}`}`),
     );
   }
   if (s.unknownRate) hero.append(el('div', { class: 'small muted' }, `Без курса: ${s.unknownRate} — в итоги не входят.`));
@@ -121,7 +123,7 @@ export async function renderHome(root) {
   }
   for (const l of tightLimits) {
     alertCount++;
-    alerts.append(el('a', { class: 'menu-row', href: l.href }, el('span', { class: l.over ? 'over' : 'warn' }, l.over ? `Лимит превышен: ${l.name}` : `Лимит почти исчерпан: ${l.name}`), el('strong', { class: l.over ? 'over' : 'warn' }, `${l.percent} %`)));
+    alerts.append(el('a', { class: 'menu-row', href: l.href }, el('span', { class: l.over ? 'over' : 'warn' }, l.over ? `План превышен: ${l.name}` : `План почти исчерпан: ${l.name}`), el('strong', { class: l.over ? 'over' : 'warn' }, `${l.percent} %`)));
   }
   const reminder = backupReminder({
     enabled: (await getSetting('backupReminderEnabled', db)) ?? true,

@@ -16,12 +16,14 @@ import { loanLeft } from '../repo/loans.js';
 import { loanStatus } from './pay-ui.js';
 import { isLoanCategory, scheduledInMonth } from '../loans.js';
 import { limitStatus } from '../limits.js';
+import { monthPlans } from '../plan.js';
 import { payStatus, markLabel } from '../pay-status.js';
 import { money, loadDisplay } from '../display.js';
 import { formatWhole } from '../money.js';
 
 /**
- * План и лимит категории на месяц. Суммы можно вводить в евро или тенге;
+ * План категории на месяц (он же лимит: полоса и предупреждения — от плана).
+ * Суммы можно вводить в евро или тенге;
  * хранятся и сравниваются в евро (п. 4.3 ТЗ), пересчёт — по курсу на сегодня.
  * @param {HTMLElement} root
  * @param {Record<string, string>} params — { month, categoryId }
@@ -66,11 +68,8 @@ export async function renderBudgetLine(root, params) {
   }
 
   const plannedInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,00', value: line?.planned != null ? amountToInput(line.planned) : '', oninput: updatePreview });
-  const limitInput = el('input', { class: 'input input-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,00', value: line?.limit != null ? amountToInput(line.limit) : '', oninput: updatePreview });
   const plannedPreview = el('p', { class: 'muted small', style: 'margin:4px 0 0' });
-  const limitPreview = el('p', { class: 'muted small', style: 'margin:4px 0 0' });
   const plannedLabel = el('span', { class: 'field-label' });
-  const limitLabel = el('span', { class: 'field-label' });
 
   const toggle = segmented([['EUR', '€'], ['KZT', '₸']], currency, (v) => {
     const prev = currency;
@@ -78,7 +77,7 @@ export async function renderBudgetLine(root, params) {
     renderRate();
     // Переводим уже введённые значения в выбранную валюту, чтобы цифры не «прыгали»
     const rate = parseRateSafe();
-    for (const input of [plannedInput, limitInput]) {
+    for (const input of [plannedInput]) {
       const v0 = parseOptional(input.value);
       if (typeof v0 !== 'number' || !rate) continue;
       input.value = amountToInput(prev === 'EUR' ? fromEurCents(v0, rate) : /** @type {number} */ (toEurCents(v0, 'KZT', rate)));
@@ -102,8 +101,7 @@ export async function renderBudgetLine(root, params) {
   function updatePreview() {
     const unit = currency === 'EUR' ? '€' : '₸';
     plannedLabel.textContent = !isExpense ? `План доходов, ${unit}` : articles.length ? `План без статьи (прочее), ${unit}` : isArticle ? `План статьи, ${unit}` : `План расходов, ${unit}`;
-    limitLabel.textContent = `Лимит, ${unit}`;
-    for (const [input, out] of [[plannedInput, plannedPreview], [limitInput, limitPreview]]) {
+    for (const [input, out] of [[plannedInput, plannedPreview]]) {
       const eur = eurOf(/** @type {HTMLInputElement} */ (input));
       out.textContent = currency === 'KZT' && typeof eur === 'number' ? `≈ ${formatMoney(eur, 'EUR')}` : currency === 'KZT' && eur == null && input.value.trim() ? 'укажите курс' : '';
     }
@@ -112,40 +110,39 @@ export async function renderBudgetLine(root, params) {
 
   const loan = isLoanCategory(category);
   await loadDisplay();
-  // Шапка: категория и месяц, факт, лимит
+  // Шапка: категория и месяц, факт, полоса от плана (у категории — вместе со статьями)
+  const plans = await monthPlans(month, allCats);
+  const planLimit = plans.limit(category);
   const header = el('div', { class: 'card' },
     el('div', { class: 'muted small' }, `${fullName(category, byId)} · ${formatMonth(month)}`),
     el('div', null, `${loan ? 'Оплачено за месяц' : 'Факт'}: ${money(fact)}${articles.length ? ' (вместе со статьями)' : ''}`),
   );
-  if (isExpense && line?.limit != null && !loan) {
-    const st = limitStatus(line.limit, fact, month, today);
+  if (planLimit != null) {
+    const st = limitStatus(planLimit, fact, month, today);
     header.append(
       el('div', { class: `bar bar-${st.level}`, style: 'margin-top:8px' }, el('div', { class: 'bar-fill', style: `width:${Math.min(100, st.percent)}%` })),
-      el('div', { class: `small ${st.level === 'ok' ? 'muted' : st.level === 'warn' ? 'warn' : 'over'}` }, `${st.percent} % из лимита ${money(line.limit)}${st.remaining >= 0 ? ` · осталось ${money(st.remaining)}` : ` · превышение ${money(-st.remaining)}`}`),
+      el('div', { class: `small ${st.level === 'ok' ? 'muted' : st.level === 'warn' ? 'warn' : 'over'}` }, `${st.percent} % из плана ${money(planLimit)}${st.remaining >= 0 ? ` · осталось ${money(st.remaining)}` : ` · превышение ${money(-st.remaining)}`}`),
     );
   }
   const form = el(
     'form',
     { class: 'form', novalidate: true, onsubmit: onSubmit },
-    el('div', { class: 'row-top', style: 'margin-bottom:8px' }, el('div', { class: 'card-title', style: 'margin:0' }, 'План и лимит'), toggle),
+    el('div', { class: 'row-top', style: 'margin-bottom:8px' }, el('div', { class: 'card-title', style: 'margin:0' }, 'План'), toggle),
     rateField,
     el('label', { class: 'field' }, plannedLabel, plannedInput, plannedPreview),
-    ...(isExpense
-      ? [el('label', { class: 'field' }, limitLabel, limitInput, limitPreview)]
-      : []),
-    el('p', { class: 'muted small' }, articles.length ? 'План категории = планы статей + этот план «прочее». Лимит — на всю категорию.' : 'Лимит — предупреждение при 80 % и при превышении.'),
+    el('p', { class: 'muted small' }, articles.length ? 'План категории = планы статей + этот план «прочее». При 80 % от плана и при превышении приложение предупредит.' : 'При 80 % от плана и при превышении приложение предупредит.'),
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
   );
   // Единый порядок для любой категории и статьи:
-  // шапка → план и лимит → статьи → платежи с датой → операции → убрать / вернуть
+  // шапка → план → статьи → платежи с датой → операции → убрать / вернуть
   const payments = await paymentsCard(category, month, loan);
   const hasPayments = payments.dataset.count !== '0';
   const planBlock = loan
-    ? el('div', { class: 'card' }, el('p', { class: 'muted small', style: 'margin:0' }, 'План по кредитам считается сам — по графику платежей. Лимит для кредитов не нужен.'))
+    ? el('div', { class: 'card' }, el('p', { class: 'muted small', style: 'margin:0' }, 'План по кредитам считается сам — по графику платежей.'))
     : el('div', { class: 'card' }, form);
   // Статьи и платежи — карточками, только если они есть; иначе одна строка с кнопками добавления
   const blocks = [];
-  if (isExpense && !isArticle && !loan && articles.length) blocks.push(await articlesCard(category, articles, month));
+  if (isExpense && !isArticle && !loan && articles.length) blocks.push(await articlesCard(category, articles, month, plans));
   if (hasPayments || loan) blocks.push(payments);
   if (!blocks.length || (!articles.length && !isArticle && !loan && !hasPayments)) {
     const links = [];
@@ -196,13 +193,13 @@ export async function renderBudgetLine(root, params) {
       return;
     }
     const planned = eurOf(plannedInput);
-    const limit = isExpense ? eurOf(limitInput) : null;
-    if (planned === false || limit === false) {
+    if (planned === false) {
       toast('Введите сумму, например 200 или 150,50', { error: true });
       return;
     }
     try {
-      await setBudgetLine(month, categoryId, { planned, limit });
+      // Старое поле «лимит» больше не вводится; сохранённое значение не трогаем
+      await setBudgetLine(month, categoryId, { planned, limit: line?.limit ?? null });
       if (currency === 'KZT') {
         const r = parseRateSafe();
         if (r && !known) await saveRate(today, r);
@@ -228,35 +225,14 @@ function parseOptional(value) {
 }
 
 /**
- * План статьи на месяц, центы евро: введённый вручную, иначе — её платежи
- * (по графику и разовые). null — плана нет.
- * @param {string} id
- * @param {string} month
- * @param {{ schedules: import('../recurring.js').Schedule[], oneOff: import('../repo/planned.js').PlannedPayment[], rate: number | null }} ctx
- */
-async function articlePlanEur(id, month, ctx) {
-  const line = await getBudgetLine(month, id);
-  if (line?.hidden) return null;
-  if (line?.planned != null) return line.planned;
-  const sched = scheduledInMonth(ctx.schedules, id, month).reduce((sum, { s }) => sum + (toEurCents(s.amount, s.currency, ctx.rate) ?? 0), 0);
-  const once = ctx.oneOff.filter((p) => p.categoryId === id).reduce((sum, p) => sum + (toEurCents(p.amount, p.currency, ctx.rate) ?? 0), 0);
-  return sched + once || null;
-}
-
-/**
  * «Статьи»: из чего состоит категория — план и факт каждой статьи, «+ Статья».
  * @param {import('../repo/categories.js').Category} category
  * @param {import('../repo/categories.js').Category[]} articles
  * @param {string} month
+ * @param {import('../plan.js').MonthPlans} plans
  */
-async function articlesCard(category, articles, month) {
+async function articlesCard(category, articles, month, plans) {
   await loadDisplay();
-  const { from, to } = monthRange(month);
-  const ctx = {
-    schedules: await listSchedules(),
-    oneOff: (await listPlanned({ from, to, includeDone: true, type: 'expense' })).filter((p) => !p.recurringId),
-    rate: (await suggestRate(todayISO()))?.rate ?? null,
-  };
   const facts = await sumByCategory(month);
   const card = el('div', { class: 'card' }, el('div', { class: 'card-title' }, 'Статьи'));
   if (!articles.length) {
@@ -265,7 +241,7 @@ async function articlesCard(category, articles, month) {
     const list = el('div', { class: 'list', style: 'margin:0 0 10px' });
     let planSum = 0;
     for (const a of articles) {
-      const plan = await articlePlanEur(a.id, month, ctx);
+      const plan = plans.own(a);
       planSum += plan ?? 0;
       const f = facts.get(a.id) ?? 0;
       list.append(el('a', { class: 'row', href: `#/budget/${month}/${a.id}` },

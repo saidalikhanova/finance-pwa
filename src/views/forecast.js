@@ -4,7 +4,7 @@ import { formatQty, parseQty, QTY_SCALE } from '../items.js';
 import { getSetting, setSetting } from '../db.js';
 import { listCategories } from '../repo/categories.js';
 import { listOperations } from '../repo/operations.js';
-import { getBudget } from '../repo/budgets.js';
+import { monthPlans } from '../plan.js';
 import { forecast } from '../products-stats.js';
 
 /**
@@ -84,18 +84,19 @@ export async function renderForecast(root) {
       return;
     }
 
-    // Сравнение с лимитами категорий целевого месяца
-    const budget = await getBudget(target);
+    // Сравнение с планами категорий целевого месяца
+    const plans = await monthPlans(target, cats);
     /** @type {Map<string, number>} */
     const byCat = new Map();
     for (const r of s.rows) byCat.set(r.categoryId, (byCat.get(r.categoryId) ?? 0) + r.eur);
     const total = [...byCat.values()].reduce((a, b) => a + b, 0);
     const cmp = el('div', { class: 'card list-card' });
     for (const [catId, eur] of [...byCat].sort((a, b) => b[1] - a[1])) {
-      const limit = budget.find((l) => l.categoryId === catId)?.limit ?? null;
+      const cat = cats.find((c) => c.id === catId);
+      const limit = cat ? plans.limit(cat) : null;
       const diff = limit == null ? '' : limit - eur >= 0 ? `запас ${formatMoney(limit - eur, 'EUR')}` : `превышение ${formatMoney(eur - limit, 'EUR')}`;
       cmp.append(el('div', { class: 'cat-row' },
-        el('span', { class: 'cat-name' }, catName(catId), el('div', { class: `muted small${limit != null && limit < eur ? ' over' : ''}` }, limit == null ? 'лимит не задан' : `лимит ${formatMoney(limit, 'EUR')} · ${diff}`)),
+        el('span', { class: 'cat-name' }, catName(catId), el('div', { class: `muted small${limit != null && limit < eur ? ' over' : ''}` }, limit == null ? 'план не задан' : `план ${formatMoney(limit, 'EUR')} · ${diff}`)),
         el('span', null, formatMoney(eur, 'EUR')),
       ));
     }
