@@ -142,7 +142,7 @@ export async function renderBudget(root) {
     // Доходы: у каждого источника — план месяца, получено и долг на сегодня
     body.append(
       el('h2', { class: 'section-title' }, 'Доходы'),
-      el('p', { class: 'muted small', style: 'margin:-4px 4px 8px' }, 'Нажмите на источник, чтобы задать план и отметить, когда и сколько получено.'),
+      el('p', { class: 'muted small', style: 'margin:-4px 4px 8px' }, 'Нажмите на источник, чтобы задать план. «+ Факт» — записать, когда и сколько получено.'),
     );
     const incomeList = el('div', { class: 'list' });
     body.append(incomeList);
@@ -176,15 +176,18 @@ export async function renderBudget(root) {
       const recMonth = orig ? catOps.filter((o) => o.date.slice(0, 7) === month).reduce((s, o) => s + (o.currency === orig.currency ? o.amount : (convert(o.amount, o.currency, orig.currency, o.rate ?? rate) ?? 0)), 0) : null;
       const debt = incomeDebt({ lines: catLines, ops: catOps, upTo: shiftMonth(thisMonth, 1), rateNow: rate, today, terms: c });
       const sub = orig
-        ? `план ${formatWhole(orig.amount, orig.currency)} · получено ${formatWhole(/** @type {number} */ (recMonth), orig.currency)}`
+        ? `план ${formatWhole(orig.amount, orig.currency)}`
         : e ? `ожидается ${money(e.pending)}` : expectedBy.get(c.id)?.length ? 'поступления с датой — ниже' : 'план не задан';
+      // Статус: не получено · получено частично · получено (сумма — факт месяца)
+      const status = !f ? 'не получено' : orig && /** @type {number} */ (recMonth) < orig.amount ? 'получено частично' : 'получено';
       const right = debt && debt.debt > 0
         ? el('div', { class: 'row-amount' }, el('div', { class: 'warn' }, formatWhole(debt.debt, debt.currency)), el('div', { class: 'muted small' }, debt.daysLate ? `просрочено ${debt.daysLate} дн.` : 'должны'))
-        : el('div', { class: 'row-amount' }, el('div', { class: 'income' }, money(f)), el('div', { class: 'muted small' }, 'получено'));
-      // «Получила» — только пока зарплата за этот месяц не получена целиком (или есть долг)
-      if (orig && ((debt?.debt ?? 0) > 0 || /** @type {number} */ (recMonth) < orig.amount)) {
-        const date = month === today.slice(0, 7) ? today : `${month}-01`;
-        right.append(el('a', { class: 'btn btn-small expected-btn', href: `#/add?type=income&category=${c.id}&currency=${orig.currency}&date=${date}` }, markLabel('income')));
+        : el('div', { class: 'row-amount' }, el('div', { class: f ? 'income' : 'muted' }, money(f)), el('div', { class: `small ${f ? 'muted' : 'warn'}` }, status));
+      // «+ Факт» — записать поступление; только пока зарплата за месяц не получена целиком (или есть долг)
+      // и месяц уже начался (будущей датой записать нельзя)
+      if (orig && month <= thisMonth && ((debt?.debt ?? 0) > 0 || /** @type {number} */ (recMonth) < orig.amount)) {
+        const date = month === thisMonth ? today : `${month}-01`;
+        right.append(el('a', { class: 'btn btn-small expected-btn', href: `#/add?type=income&category=${c.id}&currency=${orig.currency}&date=${date}` }, '+ Факт'));
       }
       const href = `#/budget/${month}/${c.id}`;
       incomeList.append(

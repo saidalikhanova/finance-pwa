@@ -46,7 +46,7 @@ export async function renderIncomeLine(root, category, month) {
     const monthIn = formatMonth(month).toLowerCase().replace(/ь /, 'е ').replace(/й /, 'е ').replace(/т /, 'те ');
     const debt = incomeDebt({ lines, ops: allIncome, upTo: shiftMonth(thisMonth, 1), rateNow, today, terms: category });
 
-    // --- Формы (скрыты, раскрываются по «изменить» / «Получила»)
+    // --- Формы (скрыты, раскрываются по «изменить» / «+ Факт»)
     const terms = termsFields(category);
     const nameInput = /** @type {HTMLInputElement} */ (el('input', { class: 'input', value: category.name, maxlength: 60 }));
     const termsPanel = el('div', { class: 'panel', hidden: Boolean(category.employer || category.payDay) },
@@ -94,7 +94,10 @@ export async function renderIncomeLine(root, category, month) {
       termsPanel,
       line('План в месяц', orig ? `${formatMoney(orig.amount, orig.currency)}${eff?.line.repeat ? ' · каждый месяц' : ''}` : 'не задан', toggle(planPanel)),
       planPanel,
-      line(`Получено в ${monthIn}`, orig ? formatMoney(recMonth, orig.currency) : monthOps.length ? `${monthOps.length} поступл.` : '0', needMore || !orig ? el('button', { class: 'btn btn-small', type: 'button', onclick: () => { recPanel.hidden = !recPanel.hidden; recAmount.focus(); } }, 'Получила') : null),
+      // Статус: «не получено» (пока ничего нет), иначе сумма; «+ Факт» — записать поступление (месяц должен начаться)
+      line(`Получено в ${monthIn}`,
+        !monthOps.length ? el('span', { class: 'warn' }, 'не получено') : orig ? `${formatMoney(recMonth, orig.currency)}${needMore ? ' · частично' : ''}` : `${monthOps.length} поступл.`,
+        (needMore || !orig) && month <= thisMonth ? el('button', { class: 'btn btn-small', type: 'button', onclick: () => { recPanel.hidden = !recPanel.hidden; recAmount.focus(); } }, '+ Факт') : null),
       recPanel,
     );
     if (monthOps.length) {
