@@ -2,8 +2,8 @@ import { test, assert } from './runner.js';
 import { catalogStats, productReport, priceHistory, groupByCategory, unitPrice } from '../src/products-stats.js';
 import { buildItemsCsv, buildAnalysisPrompt, CSV_COLUMNS } from '../src/csv.js';
 import { openDatabase, deleteDatabase } from '../src/db.js';
-import { createOperation, getOperation } from '../src/repo/operations.js';
-import { ensureProducts, mergeProducts, saveProduct, listProducts, setItemWasted } from '../src/repo/products.js';
+import { createOperation, getOperation, deleteOperation } from '../src/repo/operations.js';
+import { ensureProducts, mergeProducts, saveProduct, listProducts, setItemWasted, deleteProduct } from '../src/repo/products.js';
 import { parseRate } from '../src/money.js';
 
 /** @param {string} date @param {Array<[string, number, string, number, string?]>} items — [название, qty, unit, sum, categoryId] */
@@ -120,4 +120,17 @@ test('справочник: последняя покупка и разброс 
   assert.equal(st?.minPrice, 480, 'покупка в штуках в разброс не входит');
   assert.equal(st?.maxPrice, 525);
   assert.equal(stats.get('p:хлеб')?.minPrice, 100);
+});
+
+test('справочник: удалить можно только товар без покупок', async () => {
+  await deleteDatabase('finance-test-prod-del');
+  const db = await openDatabase('finance-test-prod-del');
+  const map = await ensureProducts([{ name: 'Молоко', unit: 'л', categoryId: 'food' }], db);
+  const id = /** @type {string} */ (map.get('молоко')?.id);
+  const op = await createOperation({ type: 'expense', date: '2026-10-01', currency: 'EUR', items: [{ productId: id, name: 'Молоко', qty: 1000, unit: 'л', price: 100, sum: 100, categoryId: 'food', wasted: 0 }] }, db);
+  await assert.rejects(() => deleteProduct(id, db), 'есть покупка');
+  await deleteOperation(op.id, db);
+  await deleteProduct(id, db);
+  assert.deepEqual(await listProducts(db), []);
+  db.close();
 });

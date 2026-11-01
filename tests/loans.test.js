@@ -4,8 +4,8 @@ import { listBanks, addBank, renameBank, removeBank } from '../src/repo/banks.js
 import { createSchedule, getSchedule, generateDue } from '../src/repo/recurring.js';
 import { listPlanned } from '../src/repo/planned.js';
 import { listOperations } from '../src/repo/operations.js';
-import { ensureLoanCategory, loanDue, settleLoanPayment, loanPayments } from '../src/repo/loans.js';
-import { createOperation } from '../src/repo/operations.js';
+import { ensureLoanCategory, loanDue, loanLeft, settleLoanPayment, loanPayments } from '../src/repo/loans.js';
+import { createOperation, deleteOperation } from '../src/repo/operations.js';
 import { listUpcoming } from '../src/repo/upcoming.js';
 import { loanName, loanPurpose, scheduledInMonth, isLoanCategory } from '../src/loans.js';
 import { monthEvents } from '../src/calendar-events.js';
@@ -151,5 +151,33 @@ test('кредит: «Оплачено» — заранее, в срок и пр
   const history = await loanPayments(loan.id, db);
   assert.deepEqual(history.map((o) => o.date), ['2026-12-10', '2026-11-12'], 'история — только этого кредита, новые сверху');
   assert.deepEqual(history.map((o) => o.scheduledDate), ['2026-12-15', '2026-11-15'], 'видна и дата по графику, и фактическая');
+  db.close();
+});
+
+test('кредит: удаление оплаты заранее возвращает платёж, он не теряется', async () => {
+  const db = await fresh();
+  const s = await createSchedule({ name: 'Кредит', bank: 'Kaspi', type: 'expense', amount: 2000, currency: 'EUR', categoryId: 'loans', period: 'monthly', startDate: '2999-01-11', endType: 'count', count: 3, confirm: true }, db);
+  const due = await loanDue(s, db);
+  assert.equal(due?.date, '2999-01-11');
+  const op = await createOperation({ type: 'expense', amount: 2000, currency: 'EUR', categoryId: 'loans', date: '2026-11-01', recurringId: s.id, scheduledDate: due.date }, db);
+  await settleLoanPayment(s, due, { operationId: op.id, date: op.date, amount: op.amount }, db);
+  const paid = await getSchedule(s.id, db);
+  assert.equal((await loanDue(paid, db))?.date, '2999-02-11', 'следующий платёж');
+  await deleteOperation(op.id, db);
+  const after = await getSchedule(s.id, db);
+  assert.equal((await loanDue(after, db))?.date, '2999-01-11', 'платёж снова ждёт оплаты');
+  assert.equal((await loanLeft(after, db))?.count, 3, 'платежей снова три');
+  assert.equal((await listPlanned({}, db)).length, 1);
+  db.close();
+});
+
+test('удаление обычной операции по расписанию не создаёт лишних платежей', async () => {
+  const db = await fresh();
+  const s = await createSchedule({ name: 'Подписка', type: 'expense', amount: 500, currency: 'EUR', categoryId: 'c', period: 'monthly', startDate: '2026-10-05' }, db);
+  await generateDue('2026-10-20', db);
+  const [op] = await listOperations({ type: 'expense' }, db);
+  assert.equal(op.recurringId, s.id);
+  await deleteOperation(op.id, db);
+  assert.equal((await listPlanned({}, db)).length, 0);
   db.close();
 });

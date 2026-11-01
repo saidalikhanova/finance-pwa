@@ -2,7 +2,7 @@ import { el, toast, confirmDialog, formatDate } from '../ui.js';
 import { formatMoney } from '../money.js';
 import { UNITS, formatQty, parseQty } from '../items.js';
 import { navigate } from '../router.js';
-import { listProducts, getProduct, saveProduct, mergeProducts, setItemWasted } from '../repo/products.js';
+import { listProducts, getProduct, saveProduct, mergeProducts, setItemWasted, deleteProduct } from '../repo/products.js';
 import { listCategories } from '../repo/categories.js';
 import { listOperations } from '../repo/operations.js';
 import { priceHistory } from '../products-stats.js';
@@ -50,6 +50,20 @@ export async function renderProduct(root, params) {
       el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, 'Сохранить')),
     ),
   );
+
+  // Удалить можно только товар без покупок (например, после удаления чека)
+  if (!ops.some((o) => o.items?.some((it) => it.productId === product.id))) {
+    root.append(el('button', { class: 'btn btn-danger', type: 'button', style: 'width:100%;margin-top:8px', onclick: async () => {
+      if (!(await confirmDialog(`Удалить «${product.name}» из справочника?`))) return;
+      try {
+        await deleteProduct(product.id);
+        toast('Удалено из справочника');
+        navigate('/products');
+      } catch (err) {
+        toast(err instanceof Error ? err.message : 'Ошибка', { error: true });
+      }
+    } }, 'Удалить из справочника'));
+  }
 
   // Объединение дубликатов
   const others = products.filter((p) => p.id !== product.id);

@@ -1,6 +1,7 @@
 import { el, toast, formatDate } from '../ui.js';
 import { getSetting } from '../db.js';
 import { todayISO } from '../repo/operations.js';
+import { suggestRate } from '../repo/rates.js';
 import { compressForReading, stitchImages, savePhoto } from '../photos.js';
 import { KEY_SETTING, MAX_RECEIPT_PHOTOS, buildReceiptRequest, recognizeReceipt, totalMismatch } from '../receipt-ai.js';
 import { formatMoney } from '../money.js';
@@ -53,6 +54,7 @@ export async function renderImport(root) {
   const preview = el('div');
 
   const key = await getSetting(KEY_SETTING);
+  const hasRate = Boolean(await suggestRate(todayISO()));
   const known = new Set((await listProducts()).map((pr) => pr.nameLower));
   const status = el('div');
   root.append(
@@ -135,6 +137,7 @@ export async function renderImport(root) {
       preview.append(
         el('div', { class: 'card' },
           el('div', { class: 'row-top' }, el('strong', null, `${formatDate(p.date)} · ${p.currency}`), el('span', null, formatMoney(editor.total(), p.currency))),
+          p.currency === 'KZT' && !hasRate ? el('p', { class: 'warn small' }, 'Курса тенге пока нет: чек сохранится, но в итоги не войдёт. Введите курс в «Ещё → Курсы» на дату чека.') : null,
           mismatchNote(p, editor),
           newProductsNote(p, known),
           unknown.length ? el('p', { class: 'warn small' }, `Категории не найдены: ${[...new Set(unknown)].join(', ')} — выберите в позициях.`) : null,

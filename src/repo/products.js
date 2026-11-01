@@ -146,3 +146,18 @@ export async function setItemWasted(operationId, index, wasted, db) {
   const items = op.items.map((/** @type {any} */ it, /** @type {number} */ i) => (i === index ? { ...it, wasted } : it));
   await put(d, 'operations', { ...op, items, updatedAt: new Date().toISOString() });
 }
+
+/**
+ * Удаляет товар из справочника. Товар с покупками удалить нельзя, их можно только объединить.
+ * @param {string} id
+ * @param {IDBDatabase} [db]
+ */
+export async function deleteProduct(id, db) {
+  const d = db ?? (await getDb());
+  /** @type {import('./operations.js').Operation[]} */
+  const ops = await getAll(d, 'operations');
+  if (ops.some((o) => o.items?.some((it) => it.productId === id))) throw new Error('У товара есть покупки. Его можно только объединить с другим');
+  const tx = writeTx(d, 'products');
+  txDelete(tx, 'products', id);
+  await done(tx);
+}

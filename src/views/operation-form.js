@@ -61,8 +61,8 @@ export async function renderOperationForm(root, params, opts = {}) {
           currency: plannedPay.currency,
           categoryId: plannedPay.categoryId,
           comment: plannedPay.name,
-          // Пришло позже срока или срок «в течение месяца» — по умолчанию сегодня
-          date: plannedPay.dateKind === 'month' || plannedPay.date < todayISO() ? todayISO() : plannedPay.date,
+          // Отметка — это факт: дата по умолчанию сегодня, а не срок платежа
+          date: todayISO(),
         }
       : isNew && (params.amount || params.category || params.date || params.type)
         ? { type: params.type === 'income' ? 'income' : 'expense', amount: Number(params.amount) || null, currency: params.currency === 'KZT' ? 'KZT' : 'EUR', categoryId: params.category ?? null, comment: '', date: params.date ?? null }
@@ -125,7 +125,8 @@ export async function renderOperationForm(root, params, opts = {}) {
     class: 'input',
     type: 'date',
     name: 'date',
-    value: existing?.date ?? preset?.date ?? todayISO(),
+    // Будущую дату (например, срок зарплаты) не подставляем: записать её нельзя
+    value: existing?.date ?? (preset?.date && preset.date <= todayISO() ? preset.date : todayISO()),
     required: true,
     onchange: () => suggestRateForDate(),
   });

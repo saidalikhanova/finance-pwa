@@ -120,14 +120,37 @@ export async function updateOperation(id, input, db) {
  */
 export async function deleteOperation(id, db) {
   const d = db ?? (await getDb());
+  const op = await getOne(d, 'operations', id);
   await remove(d, 'operations', id);
   // Если операция была отметкой «Получила» / «Оплатила» — платёж снова ждёт отметки
   /** @type {import('./planned.js').PlannedPayment[]} */
   const planned = await getAll(d, 'planned');
-  for (const p of planned) {
-    if (p.operationId !== id) continue;
+  const linked = planned.filter((p) => p.operationId === id);
+  for (const p of linked) {
     await put(d, 'planned', { ...p, done: false, operationId: null, receivedDate: null, receivedAmount: null, updatedAt: new Date().toISOString() });
   }
+  // Оплата заранее по графику: платёж уже засчитан в графике, поэтому возвращаем его отдельной записью
+  if (linked.length || !op?.recurringId || !op.scheduledDate) return;
+  const s = await getOne(d, 'recurring', op.recurringId);
+  if (!s?.confirm) return;
+  const now = new Date().toISOString();
+  await put(d, 'planned', {
+    id: `${s.id}:${op.scheduledDate}`,
+    name: s.name,
+    type: s.type,
+    amount: s.amount,
+    currency: s.currency,
+    categoryId: s.categoryId,
+    date: op.scheduledDate,
+    dateKind: 'day',
+    movedFrom: null,
+    recurringId: s.id,
+    done: false,
+    operationId: null,
+    receivedDate: null,
+    receivedAmount: null,
+    createdAt: now,
+  });
 }
 
 /**
