@@ -5,7 +5,6 @@ import { listOperations } from '../repo/operations.js';
 import { catalogStats } from '../products-stats.js';
 import { formatMoney } from '../money.js';
 import { formatQty } from '../items.js';
-import { formatDate } from '../ui.js';
 
 /** @param {HTMLElement} root */
 export async function renderProducts(root) {
@@ -56,7 +55,7 @@ export async function renderProducts(root) {
 }
 
 /**
- * «1 уп · 5,25 €/уп · купили 3 раза, последний раз 12 окт.»; если цена менялась — её разброс.
+ * «1 уп · 5,25 €/уп · покупок: 3»; если цена менялась — её разброс.
  * @param {import('../products-stats.js').CatalogStat} st
  */
 function details(st) {
@@ -64,5 +63,5 @@ function details(st) {
   const price = st.minPrice == null ? ''
     : st.minPrice === st.maxPrice ? `${formatMoney(st.minPrice, 'EUR')}/${u}`
     : `${formatMoney(st.minPrice, 'EUR')}–${formatMoney(/** @type {number} */ (st.maxPrice), 'EUR')}/${u}`;
-  return [`${formatQty(st.lastQty)} ${u}`, price, `покупок: ${st.purchases}`, `последняя ${formatDate(st.lastDate)}`].filter(Boolean).join(' · ');
+  return [`${formatQty(st.lastQty)} ${u}`, price, `покупок: ${st.purchases}`].filter(Boolean).join(' · ');
 }
