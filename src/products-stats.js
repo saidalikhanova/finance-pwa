@@ -158,3 +158,44 @@ export function groupByCategory(rows) {
   }
   return new Map([...out].sort((a, b) => b[1].eur - a[1].eur));
 }
+
+/**
+ * @typedef {Object} CatalogStat
+ * @property {number} purchases — сколько раз покупали
+ * @property {string} lastDate
+ * @property {number} lastQty — × QTY_SCALE
+ * @property {string} lastUnit
+ * @property {number | null} lastEur — сумма последней покупки, центы евро; null — нет курса
+ * @property {number | null} minPrice — самая низкая цена за единицу (в единице последней покупки)
+ * @property {number | null} maxPrice — самая высокая цена за единицу
+ */
+
+/**
+ * Для справочника: последняя покупка каждого товара и разброс цены.
+ * Покупки в других единицах в разброс не входят: их цены несравнимы.
+ * @param {Operation[]} ops
+ * @returns {Map<string, CatalogStat>}
+ */
+export function catalogStats(ops) {
+  /** @type {Map<string, ReturnType<typeof flattenItems>>} */
+  const byKey = new Map();
+  for (const f of flattenItems(ops)) byKey.set(f.key, [...(byKey.get(f.key) ?? []), f]);
+  /** @type {Map<string, CatalogStat>} */
+  const out = new Map();
+  for (const [key, list] of byKey) {
+    const last = list.reduce((a, b) => (b.op.date > a.op.date ? b : a));
+    const prices = list
+      .filter((f) => f.item.unit === last.item.unit && f.eur != null && f.item.qty > 0)
+      .map((f) => unitPrice(/** @type {number} */ (f.eur), f.item.qty));
+    out.set(key, {
+      purchases: list.length,
+      lastDate: last.op.date,
+      lastQty: last.item.qty,
+      lastUnit: last.item.unit,
+      lastEur: last.eur,
+      minPrice: prices.length ? Math.min(...prices) : null,
+      maxPrice: prices.length ? Math.max(...prices) : null,
+    });
+  }
+  return out;
+}

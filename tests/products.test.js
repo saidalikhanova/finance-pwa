@@ -1,5 +1,5 @@
 import { test, assert } from './runner.js';
-import { productReport, priceHistory, groupByCategory, unitPrice } from '../src/products-stats.js';
+import { catalogStats, productReport, priceHistory, groupByCategory, unitPrice } from '../src/products-stats.js';
 import { buildItemsCsv, buildAnalysisPrompt, CSV_COLUMNS } from '../src/csv.js';
 import { openDatabase, deleteDatabase } from '../src/db.js';
 import { createOperation, getOperation } from '../src/repo/operations.js';
@@ -102,4 +102,22 @@ test('продукты (база): переименование, объедин�
   assert.equal((await getOperation(op.id, db))?.items[0].wasted, 500);
   await assert.rejects(() => setItemWasted(op.id, 0, 5000, db), 'больше, чем куплено');
   db.close();
+});
+
+test('справочник: последняя покупка и разброс цены', () => {
+  const key = 'p:яйца';
+  const stats = catalogStats([
+    buy('2026-08-05', [['Яйца', 1000, 'уп', 480]]),
+    buy('2026-10-05', [['Яйца', 2000, 'уп', 1050]]),
+    buy('2026-09-05', [['Яйца', 1000, 'уп', 500], ['Хлеб', 1000, 'шт', 100]]),
+    buy('2026-07-05', [['Яйца', 10000, 'шт', 200]]),
+  ]);
+  const st = stats.get(key);
+  assert.equal(st?.purchases, 4);
+  assert.equal(st?.lastDate, '2026-10-05');
+  assert.equal(st?.lastQty, 2000);
+  assert.equal(st?.lastEur, 1050);
+  assert.equal(st?.minPrice, 480, 'покупка в штуках в разброс не входит');
+  assert.equal(st?.maxPrice, 525);
+  assert.equal(stats.get('p:хлеб')?.minPrice, 100);
 });
