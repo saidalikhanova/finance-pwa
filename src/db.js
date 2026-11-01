@@ -213,7 +213,7 @@ export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 /** Хранилища, записи которых синхронизируются между телефонами (фото — нет). */
 export const SYNCED_STORES = ['categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'products', 'debts', 'settings'];
 /** Настройки, общие для семьи; остальные (напоминания, валюта показа, подключение) — свои на каждом телефоне. */
-export const SYNCED_SETTINGS = new Set(['banks', 'categoriesSeeded', 'forecastMonths', 'overbuyPercent']);
+export const SYNCED_SETTINGS = new Set(['banks', 'categoriesSeeded', 'overbuyPercent']);
 /** @type {Record<string, string>} */
 const KEY_PATH = { settings: 'key', rates: 'date' };
 

@@ -9,7 +9,7 @@ import { lastMonths } from '../reports.js';
 import { buildItemsCsv, buildAnalysisPrompt } from '../csv.js';
 import { shareOrDownload } from '../ics.js';
 
-export const productReportState = { month: currentMonth(), view: 'products', sort: 'eur' };
+export const productReportState = { month: currentMonth(), view: 'categories', sort: 'eur' };
 
 /** @param {HTMLElement} root */
 export async function renderProductReports(root) {
@@ -40,7 +40,7 @@ export async function renderProductReports(root) {
     body.innerHTML = '';
 
     const viewToggle = el('div', { class: 'segmented' });
-    for (const [v, label] of [['products', 'По продуктам'], ['categories', 'По категориям']]) {
+    for (const [v, label] of [['categories', 'По категориям'], ['products', 'Общим списком']]) {
       const b = el('button', { type: 'button', class: v === productReportState.view ? 'active' : '', onclick: () => ((productReportState.view = v), refresh()) }, label);
       viewToggle.append(b);
     }
@@ -53,7 +53,7 @@ export async function renderProductReports(root) {
       body.append(el('p', { class: 'muted' }, 'За этот месяц покупок с позициями нет. Позиции появляются из импорта чеков и из формы операции.'));
     } else if (productReportState.view === 'products') {
       const total = rows.reduce((s, r) => s + r.eur, 0);
-      body.append(el('p', { class: 'muted small' }, `Продуктов: ${rows.length} · всего ${formatMoney(total, 'EUR')} · ⚠ — куплено на ${overbuyPercent} % больше среднего за прошлые месяцы`));
+      body.append(el('p', { class: 'muted small' }, `Позиций: ${rows.length} · всего ${formatMoney(total, 'EUR')} · ⚠ — куплено на ${overbuyPercent} % больше среднего за прошлые месяцы`));
       const card = el('div', { class: 'card list-card' });
       for (const r of rows) card.append(productRow(r));
       body.append(card);
@@ -65,13 +65,6 @@ export async function renderProductReports(root) {
         body.append(card);
       }
     }
-
-    body.append(
-      el('div', { class: 'btn-row', style: 'margin-top:16px' },
-        el('a', { class: 'btn btn-secondary', href: '#/forecast' }, 'Прогноз закупок'),
-        el('a', { class: 'btn btn-secondary', href: '#/products' }, 'Справочник'),
-      ),
-    );
 
     // Экспорт для анализа (п. 4.13)
     const periodSelect = el('select', { class: 'select' },

@@ -24,6 +24,7 @@ test('чек: запрос содержит снимки, категории р�
   assert.equal(content[0].source.data, 'AAA', 'снимки идут по порядку');
   const text = content[content.length - 1].text;
   assert.ok(text.includes('Молоко'), 'справочник в запросе');
+  assert.ok(text.includes('одна запись') && text.includes('марка'), 'правило без дублей');
   assert.ok(text.includes('2026-11-01'), 'дата по умолчанию');
   const catEnum = r.output_config.format.schema.properties.items.items.properties.category.enum;
   assert.deepEqual(catEnum, ['Продукты', 'Дом и быт'], 'только категории расходов');

@@ -1,4 +1,4 @@
-// Сводки по продуктам и прогноз закупок. Чистые функции над операциями с позициями.
+// Сводки по покупкам. Чистые функции над операциями с позициями.
 // Количество — × 1000, суммы — в центах евро. Продукт определяется по productId,
 // а для позиций без привязки — по названию без учёта регистра.
 
@@ -141,57 +141,6 @@ export function priceHistory(ops, key) {
  * @property {number} monthsBought — в скольких месяцах базы покупали
  * @property {string} note — «примерно раз в 2 мес.» для редких продуктов
  */
-
-/**
- * Прогноз закупок на следующий месяц по последним N месяцам.
- * Количество — среднее потребление за месяц (куплено минус выброшено);
- * стоимость — по средней цене за единицу. Для редко покупаемых продуктов
- * указана периодичность.
- * @param {Operation[]} ops
- * @param {{ months: number, endMonth: string }} opts — endMonth — последний месяц базы (обычно текущий)
- * @returns {{ rows: ForecastRow[], months: string[], monthsWithData: number, preliminary: boolean }}
- */
-export function forecast(ops, opts) {
-  const months = lastMonths(opts.months, opts.endMonth);
-  /** @type {Map<string, { name: string, unit: string, categoryId: string, qty: number, wasted: number, eur: number, monthSet: Set<string> }>} */
-  const acc = new Map();
-  const monthsWithData = new Set();
-  for (const f of flattenItems(ops)) {
-    const m = f.op.date.slice(0, 7);
-    if (!months.includes(m)) continue;
-    monthsWithData.add(m);
-    let a = acc.get(f.key);
-    if (!a) {
-      a = { name: f.item.name, unit: f.item.unit, categoryId: f.item.categoryId, qty: 0, wasted: 0, eur: 0, monthSet: new Set() };
-      acc.set(f.key, a);
-    }
-    a.qty += f.item.qty;
-    a.wasted += f.item.wasted ?? 0;
-    a.eur += f.eur ?? 0;
-    a.monthSet.add(m);
-    a.name = f.item.name;
-    a.unit = f.item.unit;
-    a.categoryId = f.item.categoryId;
-  }
-  const n = months.length;
-  /** @type {ForecastRow[]} */
-  const rows = [];
-  for (const [key, a] of acc) {
-    const useful = Math.max(0, a.qty - a.wasted);
-    const qty = divRound(useful, n);
-    if (qty <= 0) continue;
-    const price = unitPrice(a.eur, a.qty);
-    const monthsBought = a.monthSet.size;
-    let note = '';
-    if (monthsBought * 2 < n) {
-      const every = Math.round(n / monthsBought);
-      note = `примерно раз в ${every} мес.`;
-    }
-    rows.push({ key, name: a.name, unit: a.unit, categoryId: a.categoryId, qty, eur: divRound(price * qty, QTY_SCALE), monthsBought, note });
-  }
-  rows.sort((x, y) => y.eur - x.eur || x.name.localeCompare(y.name, 'ru'));
-  return { rows, months, monthsWithData: monthsWithData.size, preliminary: monthsWithData.size < 2 };
-}
 
 /**
  * Разбивка по категориям с продуктами внутри (для отчёта по категории).

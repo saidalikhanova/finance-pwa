@@ -1,5 +1,5 @@
 import { test, assert } from './runner.js';
-import { productReport, priceHistory, forecast, groupByCategory, unitPrice } from '../src/products-stats.js';
+import { productReport, priceHistory, groupByCategory, unitPrice } from '../src/products-stats.js';
 import { buildItemsCsv, buildAnalysisPrompt, CSV_COLUMNS } from '../src/csv.js';
 import { openDatabase, deleteDatabase } from '../src/db.js';
 import { createOperation, getOperation } from '../src/repo/operations.js';
@@ -63,26 +63,6 @@ test('продукты: отчёт по категориям и история �
   assert.equal(unitPrice(100, 333), 300, '1 € за 0,333 → 3,00 €/ед.');
 });
 
-test('прогноз закупок: среднее потребление, редкие продукты, выброшенное', () => {
-  const withWaste = ops.map((o) => ({ ...o, items: o.items.map((it) => (it.name === 'Молоко' && o.date === '2026-09-05' ? { ...it, wasted: 1000 } : it)) }));
-  const f = forecast(withWaste, { months: 3, endMonth: '2026-10' });
-  assert.deepEqual(f.months, ['2026-08', '2026-09', '2026-10']);
-  assert.equal(f.monthsWithData, 3);
-  assert.equal(f.preliminary, false);
-  const by = Object.fromEntries(f.rows.map((r) => [r.name, r]));
-  assert.equal(by['Лук'].qty, 2333, '(1+2+1+3) кг / 3 = 2,333');
-  assert.equal(by['Лук'].eur, 282, 'средняя цена 8,50 € / 7 кг = 1,21 €/кг × 2,333 кг = 2,82 €');
-  assert.equal(by['Молоко'].qty, 1333, '(2+2+1 − 1 выброшен) / 3 = 1,333');
-  assert.equal(by['Мыло'].monthsBought, 1);
-  assert.equal(by['Мыло'].note, 'примерно раз в 3 мес.');
-  assert.equal(by['Мыло'].qty, 333);
-  assert.equal(by['Лук'].note, '', 'регулярный продукт');
-
-  const short = forecast(ops.slice(3), { months: 3, endMonth: '2026-10' });
-  assert.equal(short.preliminary, true, 'данных меньше двух месяцев');
-  assert.deepEqual(forecast([], { months: 3, endMonth: '2026-10' }).rows, []);
-});
-
 test('экспорт: CSV по позициям и запрос для анализа', () => {
   const csv = buildItemsCsv(ops.slice(0, 1), new Map([['food', 'Продукты']]));
   assert.ok(csv.startsWith('﻿' + CSV_COLUMNS.join(',')), 'BOM и заголовок');
@@ -92,7 +72,7 @@ test('экспорт: CSV по позициям и запрос для анал�
   const quoted = buildItemsCsv([buy('2026-08-05', [['Сыр "Гауда", нарезка', 1000, 'уп', 300]])], new Map());
   assert.ok(quoted.includes('"Сыр ""Гауда"", нарезка"'), 'кавычки и запятые экранированы');
   const prompt = buildAnalysisPrompt('Октябрь 2026');
-  assert.ok(prompt.includes('Октябрь 2026') && prompt.includes('Прогноз закупок'));
+  assert.ok(prompt.includes('Октябрь 2026') && !prompt.includes('Прогноз закупок'));
 });
 
 const TEST_DB = 'finance-test-products';

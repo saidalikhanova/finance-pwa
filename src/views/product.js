@@ -54,10 +54,10 @@ export async function renderProduct(root, params) {
   // Объединение дубликатов
   const others = products.filter((p) => p.id !== product.id);
   if (others.length) {
-    const target = el('select', { class: 'select' }, el('option', { value: '' }, 'Выберите продукт'), ...others.map((p) => el('option', { value: p.id }, p.name)));
+    const target = el('select', { class: 'select' }, el('option', { value: '' }, 'Выберите товар'), ...others.map((p) => el('option', { value: p.id }, p.name)));
     root.append(
-      el('h2', { class: 'section-title' }, 'Объединить с другим продуктом'),
-      el('p', { class: 'muted small' }, `Все покупки «${product.name}» перейдут к выбранному продукту, а эта запись будет удалена.`),
+      el('h2', { class: 'section-title' }, 'Объединить с другим товаром'),
+      el('p', { class: 'muted small' }, `Все покупки «${product.name}» перейдут к выбранному товару, а эта запись будет удалена.`),
       el('div', { class: 'add-row' }, target, el('button', {
         class: 'btn btn-small btn-danger',
         type: 'button',

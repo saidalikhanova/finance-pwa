@@ -53,6 +53,7 @@ export async function renderImport(root) {
   const preview = el('div');
 
   const key = await getSetting(KEY_SETTING);
+  const known = new Set((await listProducts()).map((pr) => pr.nameLower));
   const status = el('div');
   root.append(
     el('div', { class: 'card' },
@@ -135,6 +136,7 @@ export async function renderImport(root) {
         el('div', { class: 'card' },
           el('div', { class: 'row-top' }, el('strong', null, `${formatDate(p.date)} · ${p.currency}`), el('span', null, formatMoney(editor.total(), p.currency))),
           mismatchNote(p, editor),
+          newProductsNote(p, known),
           unknown.length ? el('p', { class: 'warn small' }, `Категории не найдены: ${[...new Set(unknown)].join(', ')} — выберите в позициях.`) : null,
           el('div', { class: 'item-line', style: 'margin:8px 0' }, date, store),
           editor.el,
@@ -181,4 +183,14 @@ export async function renderImport(root) {
 function mismatchNote(p, editor) {
   if (totalMismatch({ items: [{ sum: editor.total() }], total: p.total }) == null) return null;
   return el('p', { class: 'warn small' }, `Итог на чеке ${formatMoney(/** @type {number} */ (p.total), p.currency)}, а сумма позиций ${formatMoney(editor.total(), p.currency)}. Сверьте позиции с чеком.`);
+}
+
+/**
+ * Какие товары будут добавлены в справочник: остальные там уже есть.
+ * @param {import('../chat-import.js').ParsedPurchase} p
+ * @param {Set<string>} known
+ */
+function newProductsNote(p, known) {
+  const fresh = [...new Set(p.items.map((it) => it.name.trim()))].filter((n) => !known.has(n.toLowerCase()));
+  return fresh.length ? el('p', { class: 'muted small' }, `Новые в справочнике: ${fresh.join(', ')}.`) : null;
 }
