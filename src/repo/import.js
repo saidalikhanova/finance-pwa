@@ -36,6 +36,7 @@ export async function applyImport(purchases, opts, db) {
         rateSource: rate ? 'manual' : null,
         store: p.store,
         comment: p.comment || p.store,
+        photoId: p.photoId ?? null,
         items: p.items.map((it) => ({
           productId: products.get(it.name.trim().toLowerCase())?.id ?? null,
           name: it.name,

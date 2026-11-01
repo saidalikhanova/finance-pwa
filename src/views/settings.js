@@ -1,6 +1,7 @@
 import { el, toast } from '../ui.js';
 import { getSetting, setSetting, SCHEMA_VERSION } from '../db.js';
 import { DEFAULT_REMINDER_DAYS } from '../backup-reminder.js';
+import { KEY_SETTING } from '../receipt-ai.js';
 
 /** @param {HTMLElement} root */
 export async function renderSettings(root) {
@@ -20,6 +21,8 @@ export async function renderSettings(root) {
     el('div', { class: 'card list-card' },
       el('a', { class: 'menu-row', href: '#/sync' }, el('span', null, 'Общие данные для семьи', el('div', { class: 'muted small' }, sync?.url ? 'включены' : 'не подключены — вести записи вдвоём')), el('span', { class: 'muted' }, '›')),
     ),
+    el('h2', { class: 'section-title' }, 'Распознавание чеков'),
+    receiptKeyCard(await getSetting(KEY_SETTING)),
     el('h2', { class: 'section-title' }, 'Напоминание о резервной копии'),
     el('div', { class: 'card list-card' },
       el('label', { class: 'cat-row' }, enabledBox, el('span', { class: 'cat-name' }, 'Показывать напоминание на главной')),
@@ -111,4 +114,37 @@ async function siteVersion() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Ключ Anthropic API: хранится только на этом телефоне, на экране не показывается.
+ * @param {string | undefined} saved
+ */
+function receiptKeyCard(saved) {
+  const card = el('div', { class: 'card' });
+  const draw = (/** @type {string | null | undefined} */ key) => {
+    const input = /** @type {HTMLInputElement} */ (el('input', { class: 'input', type: 'password', autocomplete: 'off', placeholder: 'sk-ant-…' }));
+    card.replaceChildren(
+      el('p', { class: 'muted small', style: 'margin:0 0 8px' }, key
+        ? `Ключ сохранён: …${key.slice(-4)}. Он хранится только на этом телефоне и не попадает ни в резервную копию, ни в общие данные. Снимки чеков отправляются в Anthropic только когда вы фотографируете чек.`
+        : 'Вставьте ключ Anthropic API, чтобы приложение само читало чеки. Подойдёт тот же, что в «Моих Рецептах». Получить ключ можно на console.anthropic.com. Снимки чеков будут отправляться в Anthropic.'),
+      el('label', { class: 'field' }, el('span', { class: 'field-label' }, key ? 'Заменить ключ' : 'Ключ'), input),
+      el('div', { class: 'btn-row' },
+        el('button', { class: 'btn', type: 'button', onclick: async () => {
+          const v = input.value.trim();
+          if (!v.startsWith('sk-ant-')) return toast('Ключ начинается с sk-ant-', { error: true });
+          await setSetting(KEY_SETTING, v);
+          toast('Ключ сохранён');
+          draw(v);
+        } }, 'Сохранить ключ'),
+        key ? el('button', { class: 'btn btn-danger', type: 'button', onclick: async () => {
+          await setSetting(KEY_SETTING, null);
+          toast('Ключ удалён');
+          draw(null);
+        } }, 'Удалить') : null,
+      ),
+    );
+  };
+  draw(saved);
+  return card;
 }

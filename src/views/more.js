@@ -14,7 +14,7 @@ export function renderMore(root) {
     ),
     el('details', { class: 'card list-card', style: 'margin-top:12px' },
       el('summary', { class: 'muted' }, 'Дополнительно'),
-      menu('#/import', 'Импорт чека из Claude', 'есть и вверху «Операций»'),
+      menu('#/import', 'Чеки: фото и импорт из Claude', 'фото чека есть и вверху «Операций»'),
       menu('#/products', 'Продукты', 'справочник: названия, единицы, категории'),
       menu('#/product-reports', 'Отчёт по продуктам', 'что и сколько покупаете'),
       menu('#/forecast', 'Прогноз закупок', 'сколько уйдёт на продукты'),

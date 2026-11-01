@@ -11,7 +11,7 @@ export const BACKUP_VERSION = 1;
 export const DATA_STORES = ['settings', 'categories', 'operations', 'rates', 'budgets', 'recurring', 'planned', 'wishes', 'products', 'debts'];
 
 /** Настройки, которые не переносятся между устройствами. */
-const LOCAL_SETTINGS = new Set(['installedAt', 'lastBackupAt', 'shoppingList', 'sync']);
+const LOCAL_SETTINGS = new Set(['installedAt', 'lastBackupAt', 'shoppingList', 'sync', 'anthropicKey']);
 
 /**
  * @typedef {Object} Backup

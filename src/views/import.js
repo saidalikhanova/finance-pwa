@@ -1,4 +1,8 @@
 import { el, toast, formatDate } from '../ui.js';
+import { getSetting } from '../db.js';
+import { todayISO } from '../repo/operations.js';
+import { compressForReading, stitchImages, savePhoto } from '../photos.js';
+import { KEY_SETTING, MAX_RECEIPT_PHOTOS, buildReceiptRequest, recognizeReceipt, totalMismatch } from '../receipt-ai.js';
 import { formatMoney } from '../money.js';
 import { navigate } from '../router.js';
 import { listCategories } from '../repo/categories.js';
@@ -9,6 +13,38 @@ import { applyImport } from '../repo/import.js';
 import { itemsEditor } from './items-editor.js';
 import { field } from './form-parts.js';
 
+/** Фото, выбранные кнопкой в «Операциях», ждут экрана чека. @type {File[] | null} */
+let pendingFiles = null;
+
+/** Открывает выбор фото: камера или галерея. @param {(files: File[]) => void} onPick */
+function choosePhotos(onPick) {
+  const input = /** @type {HTMLInputElement} */ (el('input', { type: 'file', accept: 'image/*', multiple: true }));
+  input.onchange = () => {
+    const files = [...(input.files ?? [])];
+    if (files.length > MAX_RECEIPT_PHOTOS) toast(`Взяты первые ${MAX_RECEIPT_PHOTOS} снимка`);
+    if (files.length) onPick(files.slice(0, MAX_RECEIPT_PHOTOS));
+  };
+  input.click();
+}
+
+/** Кнопка «Сфотографировать чек» в «Операциях». */
+export function pickReceipt() {
+  // Камеру можно открыть только сразу по нажатию, поэтому выбор — до чтения настроек
+  choosePhotos((files) => {
+    pendingFiles = files;
+    navigate('/import');
+  });
+}
+
+/** @param {File} file @returns {Promise<string>} */
+async function toBase64(file) {
+  const blob = await compressForReading(file);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
 /** @param {HTMLElement} root */
 export async function renderImport(root) {
   const categories = await listCategories({ includeArchived: true });
@@ -16,15 +52,50 @@ export async function renderImport(root) {
   const textarea = el('textarea', { class: 'input textarea', rows: 8, placeholder: 'Вставьте сюда JSON из чата' });
   const preview = el('div');
 
+  const key = await getSetting(KEY_SETTING);
+  const status = el('div');
   root.append(
     el('div', { class: 'card' },
-      el('p', { class: 'small', style: 'margin:0 0 8px' }, '1. Скопируйте инструкцию и вставьте её в чат с Claude вместе с фотографией чека. 2. Полученный JSON вставьте ниже.'),
-      el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%', onclick: copyPrompt }, 'Скопировать инструкцию для Claude'),
+      el('div', { class: 'card-title' }, 'Фото чека'),
+      key
+        ? el('div', null,
+            el('p', { class: 'muted small', style: 'margin:0 0 8px' }, `Приложение прочитает чек и разложит покупки по категориям. Длинный чек можно снять частями, до ${MAX_RECEIPT_PHOTOS} снимков.`),
+            el('button', { class: 'btn', type: 'button', style: 'width:100%', onclick: () => choosePhotos(recognize) }, 'Сфотографировать чек'))
+        : el('div', null,
+            el('p', { class: 'muted small', style: 'margin:0 0 8px' }, 'Чтобы приложение само читало чеки, нужен ключ Anthropic API. Он вставляется один раз в настройках.'),
+            el('a', { class: 'btn', href: '#/settings', style: 'display:block;text-align:center' }, 'Вставить ключ')),
+      status,
     ),
-    field('JSON из чата', textarea),
-    el('button', { class: 'btn', type: 'button', style: 'width:100%', onclick: parse }, 'Разобрать'),
+    el('details', { class: 'card', style: 'margin-top:12px' },
+      el('summary', { class: 'muted' }, 'Другой способ: через чат с Claude'),
+      el('p', { class: 'small', style: 'margin:8px 0' }, '1. Скопируйте инструкцию и вставьте её в чат с Claude вместе с фотографией чека. 2. Полученный JSON вставьте ниже.'),
+      el('button', { class: 'btn btn-secondary', type: 'button', style: 'width:100%', onclick: copyPrompt }, 'Скопировать инструкцию для Claude'),
+      field('JSON из чата', textarea),
+      el('button', { class: 'btn', type: 'button', style: 'width:100%', onclick: () => parse(textarea.value) }, 'Разобрать'),
+    ),
     preview,
   );
+
+  if (pendingFiles) {
+    const files = pendingFiles;
+    pendingFiles = null;
+    if (key) recognize(files);
+    else toast('Сначала вставьте ключ', { error: true });
+  }
+
+  /** @param {File[]} files */
+  async function recognize(files) {
+    preview.innerHTML = '';
+    status.replaceChildren(el('p', { class: 'small', style: 'margin:8px 0 0' }, 'Читаю чек, это занимает до минуты…'));
+    try {
+      const [images, products] = await Promise.all([Promise.all(files.map(toBase64)), listProducts()]);
+      const text = await recognizeReceipt(key, buildReceiptRequest({ categories, products, today: todayISO() }, images));
+      status.replaceChildren();
+      parse(text, files);
+    } catch (err) {
+      status.replaceChildren(el('p', { class: 'over small', style: 'margin:8px 0 0' }, err instanceof Error ? err.message : 'Не удалось распознать чек'));
+    }
+  }
 
   async function copyPrompt() {
     const products = await listProducts();
@@ -40,8 +111,9 @@ export async function renderImport(root) {
     }
   }
 
-  function parse() {
-    const { purchases, errors } = parseChatImport(textarea.value, categories);
+  /** @param {string} text @param {File[]} [files] — снимки, если чек сфотографирован */
+  function parse(text, files) {
+    const { purchases, errors } = parseChatImport(text, categories);
     preview.innerHTML = '';
     if (errors.length) preview.append(el('div', { class: 'card' }, el('div', { class: 'over small' }, 'Замечания:'), ...errors.map((e) => el('div', { class: 'small' }, `• ${e}`))));
     if (!purchases.length) {
@@ -62,6 +134,7 @@ export async function renderImport(root) {
       preview.append(
         el('div', { class: 'card' },
           el('div', { class: 'row-top' }, el('strong', null, `${formatDate(p.date)} · ${p.currency}`), el('span', null, formatMoney(editor.total(), p.currency))),
+          mismatchNote(p, editor),
           unknown.length ? el('p', { class: 'warn small' }, `Категории не найдены: ${[...new Set(unknown)].join(', ')} — выберите в позициях.`) : null,
           el('div', { class: 'item-line', style: 'margin:8px 0' }, date, store),
           editor.el,
@@ -77,8 +150,14 @@ export async function renderImport(root) {
     );
 
     async function confirm() {
+      if (blocks.some((b) => b.date.value > todayISO())) {
+        toast('Дата чека ещё не наступила. Проверьте дату', { error: true });
+        return;
+      }
+      const photoId = files ? await savePhoto(await stitchImages(files)).catch(() => null) : null;
       const final = blocks.map((b) => ({
         ...b.p,
+        photoId,
         date: b.date.value,
         store: b.store.value.trim(),
         items: b.editor.read().map((it) => ({ ...it, categoryName: '' })),
@@ -92,4 +171,14 @@ export async function renderImport(root) {
       }
     }
   }
+}
+
+/**
+ * Предупреждение, если сумма позиций не сходится с итогом чека.
+ * @param {import('../chat-import.js').ParsedPurchase} p
+ * @param {ReturnType<typeof itemsEditor>} editor
+ */
+function mismatchNote(p, editor) {
+  if (totalMismatch({ items: [{ sum: editor.total() }], total: p.total }) == null) return null;
+  return el('p', { class: 'warn small' }, `Итог на чеке ${formatMoney(/** @type {number} */ (p.total), p.currency)}, а сумма позиций ${formatMoney(editor.total(), p.currency)}. Сверьте позиции с чеком.`);
 }

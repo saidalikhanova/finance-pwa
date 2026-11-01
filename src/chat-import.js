@@ -21,6 +21,8 @@ import { parseQty, lineSum, UNITS } from './items.js';
  * @property {'EUR' | 'KZT'} currency
  * @property {ParsedItem[]} items
  * @property {string} comment
+ * @property {number | null} [total] — итог чека, если известен
+ * @property {string | null} [photoId] — снимок чека
  */
 
 const UNIT_ALIASES = /** @type {Record<string, string>} */ ({
@@ -121,7 +123,7 @@ export function parseChatImport(text, categories) {
       items.push({ name, qty: q, unit, price, sum, categoryName, categoryId: byName.get(normalizeCategoryName(categoryName)) ?? '' });
     });
     if (!items.length) return;
-    purchases.push({ date, store: String(p.store ?? '').trim(), currency, items, comment: String(p.comment ?? '').trim() });
+    purchases.push({ date, store: String(p.store ?? '').trim(), currency, items, comment: String(p.comment ?? '').trim(), total: money(p.total) });
   });
 
   return { purchases, errors };

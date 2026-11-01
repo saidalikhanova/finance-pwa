@@ -22,6 +22,7 @@ import './pay-status.test.js';
 import './plan.test.js';
 import './sync.test.js';
 import './sync-engine.test.js';
+import './receipt-ai.test.js';
 import './debts.test.js';
 
 run();

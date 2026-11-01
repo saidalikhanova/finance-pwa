@@ -4,6 +4,7 @@ import { listOperations, monthRange } from '../repo/operations.js';
 import { listCategories } from '../repo/categories.js';
 import { withChildren, fullName } from '../category-tree.js';
 import { categoryOptions } from './form-parts.js';
+import { pickReceipt } from './import.js';
 
 // Фильтры сохраняются между переходами, чтобы после редактирования
 // операции список открылся в том же месяце.
@@ -62,7 +63,7 @@ export async function renderOperations(root, params = {}) {
       el('div', { class: 'filter-row' }, typeSelect, catSelect),
     ),
     el('div', { class: 'btn-row' },
-      el('a', { class: 'btn btn-secondary', href: '#/import' }, 'Импорт чека из Claude'),
+      el('button', { class: 'btn', type: 'button', onclick: pickReceipt }, 'Сфотографировать чек'),
       el('a', { class: 'btn btn-secondary', href: '#/add' }, '+ Трата вручную'),
     ),
     list,
