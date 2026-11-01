@@ -9,7 +9,7 @@ import { lastMonths } from '../reports.js';
 import { buildItemsCsv, buildAnalysisPrompt } from '../csv.js';
 import { shareOrDownload } from '../ics.js';
 
-export const productReportState = { month: currentMonth(), view: 'categories', sort: 'eur' };
+export const productReportState = { month: currentMonth() };
 
 /** @param {HTMLElement} root */
 export async function renderProductReports(root) {
@@ -36,28 +36,16 @@ export async function renderProductReports(root) {
     const [categories, ops] = await Promise.all([listCategories({ includeArchived: true }), listOperations({})]);
     const catName = (/** @type {string} */ id) => categories.find((c) => c.id === id)?.name ?? 'Без категории';
     const overbuyPercent = Number((await getSetting('overbuyPercent')) ?? 30);
-    const rows = productReport(ops, month, { overbuyPercent, sort: /** @type {any} */ (productReportState.sort) });
+    const rows = productReport(ops, month, { overbuyPercent });
     body.innerHTML = '';
 
-    const viewToggle = el('div', { class: 'segmented' });
-    for (const [v, label] of [['categories', 'По категориям'], ['products', 'Общим списком']]) {
-      const b = el('button', { type: 'button', class: v === productReportState.view ? 'active' : '', onclick: () => ((productReportState.view = v), refresh()) }, label);
-      viewToggle.append(b);
-    }
-    const sortSelect = el('select', { class: 'select', 'aria-label': 'Сортировка', onchange: () => ((productReportState.sort = sortSelect.value), refresh()) },
-      el('option', { value: 'eur' }, 'По сумме'), el('option', { value: 'qty' }, 'По количеству'));
-    sortSelect.value = productReportState.sort;
-    body.append(el('div', { class: 'filters' }, viewToggle, el('div', { class: 'filter-row', style: 'margin-top:8px' }, sortSelect)));
-
     if (!rows.length) {
-      body.append(el('p', { class: 'muted' }, 'За этот месяц покупок с позициями нет. Позиции появляются из импорта чеков и из формы операции.'));
-    } else if (productReportState.view === 'products') {
-      const total = rows.reduce((s, r) => s + r.eur, 0);
-      body.append(el('p', { class: 'muted small' }, `Позиций: ${rows.length} · всего ${formatMoney(total, 'EUR')} · ⚠ — куплено на ${overbuyPercent} % больше среднего за прошлые месяцы`));
-      const card = el('div', { class: 'card list-card' });
-      for (const r of rows) card.append(productRow(r));
-      body.append(card);
+      body.append(el('p', { class: 'muted' }, 'За этот месяц покупок с позициями нет. Они появляются, когда вы фотографируете чек.'));
     } else {
+      const total = rows.reduce((sum, r) => sum + r.eur, 0);
+      body.append(el('p', { class: 'small' }, `Всего за месяц: ${formatMoney(total, 'EUR')}`));
+      if (rows.some((r) => r.overbuy)) body.append(el('p', { class: 'muted small' }, `⚠ — куплено на ${overbuyPercent} % больше обычного.`));
+      // Категории и покупки внутри них — от большей суммы к меньшей
       for (const [catId, g] of groupByCategory(rows)) {
         body.append(el('h2', { class: 'section-title' }, `${catName(catId)} — ${formatMoney(g.eur, 'EUR')}`));
         const card = el('div', { class: 'card list-card' });
