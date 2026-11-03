@@ -13,6 +13,7 @@ import { parseChatImport, buildClaudePrompt } from '../chat-import.js';
 import { applyImport } from '../repo/import.js';
 import { itemsEditor } from './items-editor.js';
 import { field } from './form-parts.js';
+import { sourceChips, lastSource, rememberSource } from './source-chips.js';
 
 /** Фото, выбранные кнопкой в «Операциях», ждут экрана чека. @type {File[] | null} */
 let pendingFiles = null;
@@ -149,7 +150,15 @@ export async function renderImport(root) {
     }
 
     const addProducts = /** @type {HTMLInputElement} */ (el('input', { type: 'checkbox', checked: true }));
+    // Чем оплачено — одно на все чеки этого импорта
+    let getSource = () => '';
+    const sourceHolder = el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Чем оплачено'));
+    sourceChips({ value: lastSource() }).then((c) => {
+      getSource = c.get;
+      sourceHolder.append(c.el);
+    });
     preview.append(
+      sourceHolder,
       el('label', { class: 'cat-row' }, addProducts, el('span', null, 'Добавить новые продукты в справочник')),
       el('button', { class: 'btn', type: 'button', style: 'width:100%', onclick: confirm }, `Создать операции (${purchases.length})`),
     );
@@ -168,7 +177,8 @@ export async function renderImport(root) {
         items: b.editor.read().map((it) => ({ ...it, categoryName: '' })),
       }));
       try {
-        const r = await applyImport(final, { addProducts: addProducts.checked });
+        const r = await applyImport(final, { addProducts: addProducts.checked, source: getSource() });
+        rememberSource(getSource());
         toast(`Создано операций: ${r.operations}${r.newProducts ? `, новых продуктов: ${r.newProducts}` : ''}`);
         navigate('/operations');
       } catch (err) {

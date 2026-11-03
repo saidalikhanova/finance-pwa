@@ -22,6 +22,7 @@ import { normalizeItems, itemsTotal, categoryAmountsEur } from '../items.js';
  * @property {import('../items.js').Item[]} items — позиции покупки; при наличии сумма операции равна их сумме
  * @property {string} store — магазин (необязательно)
  * @property {string | null} photoId — фото чека
+ * @property {string} [source] — источник оплаты (наличные, карта); пусто — не указан
  * @property {string | null} [debtId] — возврат долга (раздел «Мои долги»)
  * @property {string | null} [recurringId] — платёж по расписанию (например, оплата кредита)
  * @property {string | null} [scheduledDate] — дата платежа по графику (дата операции — фактическая)
@@ -74,6 +75,7 @@ export function normalizeOperation(input) {
     items,
     store: (input.store ?? '').trim(),
     photoId: input.photoId ?? null,
+    source: (input.source ?? '').trim(),
     debtId: input.debtId ?? null,
     recurringId: input.recurringId ?? null,
     scheduledDate: input.scheduledDate ?? null,

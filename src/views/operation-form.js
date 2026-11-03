@@ -24,6 +24,7 @@ import { categoryLabel } from './form-parts.js';
 import { categoryChips } from './category-chips.js';
 import { fullName } from '../category-tree.js';
 import { showLimitMessages } from './limit-check.js';
+import { sourceChips, lastSource, rememberSource } from './source-chips.js';
 
 /**
  * Форма создания и редактирования операции.
@@ -227,6 +228,10 @@ export async function renderOperationForm(root, params, opts = {}) {
     }
   }
 
+  // Источник оплаты: у новой операции подставляем тот, что выбирали в прошлый раз
+  const sources = await sourceChips({ value: existing ? existing.source ?? '' : lastSource() });
+  const sourceField = el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Чем оплачено'), sources.el);
+
   // Фото чека
   /** @type {Blob | null} */
   let newPhoto = null;
@@ -280,6 +285,7 @@ export async function renderOperationForm(root, params, opts = {}) {
   const mainBox = el('div', { hidden: compact }, ...[
     field('Сумма', el('div', { class: 'amount-row' }, amountInput, currencyToggle), eurPreview),
     rateField,
+    sourceField,
     compact ? null : dateField,
     compact ? null : details,
     el('div', { class: 'form-actions' }, el('button', { class: 'btn', type: 'submit' }, isNew ? 'Сохранить' : 'Сохранить изменения')),
@@ -364,6 +370,7 @@ export async function renderOperationForm(root, params, opts = {}) {
       store: storeInput.value,
       items: typeInput.value === 'expense' ? items : [],
       photoId,
+      source: sources.get(),
       rate,
       rateSource: rate ? /** @type {const} */ ('manual') : null,
       // Связь с кредитом (или другим платежом по расписанию)
@@ -371,6 +378,7 @@ export async function renderOperationForm(root, params, opts = {}) {
       // Дата по графику — чтобы видеть, в срок ли оплачено
       scheduledDate: loanDueInfo?.date ?? (plannedPay?.recurringId ? plannedPay.date : null) ?? existing?.scheduledDate ?? null,
     };
+    rememberSource(data.source);
     try {
       if (existing) {
         await updateOperation(existing.id, data);

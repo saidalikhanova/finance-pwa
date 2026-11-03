@@ -4,7 +4,7 @@ import { amountToInput } from './money.js';
 import { formatQty } from './items.js';
 import { flattenItems } from './products-stats.js';
 
-export const CSV_COLUMNS = ['дата', 'магазин', 'продукт', 'категория', 'количество', 'единица', 'цена_за_единицу', 'сумма', 'валюта', 'сумма_eur', 'выброшено', 'id_покупки'];
+export const CSV_COLUMNS = ['дата', 'магазин', 'продукт', 'категория', 'количество', 'единица', 'цена_за_единицу', 'сумма', 'валюта', 'сумма_eur', 'выброшено', 'id_покупки', 'источник_оплаты'];
 
 /** @param {unknown} v */
 function cell(v) {
@@ -34,6 +34,7 @@ export function buildItemsCsv(ops, categoryNames) {
         f.eur == null ? '' : amountToInput(f.eur).replace(',', '.'),
         f.item.wasted ? formatQty(f.item.wasted).replace(',', '.') : '',
         f.op.id,
+        f.op.source ?? '',
       ]
         .map(cell)
         .join(','),

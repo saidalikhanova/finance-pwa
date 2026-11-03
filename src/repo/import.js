@@ -35,6 +35,7 @@ export async function applyImport(purchases, opts, db) {
         rate,
         rateSource: rate ? 'manual' : null,
         store: p.store,
+        source: opts.source ?? '',
         comment: p.comment || p.store,
         photoId: p.photoId ?? null,
         items: p.items.map((it) => ({

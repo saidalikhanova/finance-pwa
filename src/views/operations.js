@@ -5,6 +5,7 @@ import { listCategories } from '../repo/categories.js';
 import { withChildren, fullName } from '../category-tree.js';
 import { categoryOptions } from './form-parts.js';
 import { pickReceipt } from './import.js';
+import { listSources } from '../repo/sources.js';
 
 // Фильтры сохраняются между переходами, чтобы после редактирования
 // операции список открылся в том же месяце.
@@ -13,6 +14,7 @@ const state = {
   /** @type {'' | 'expense' | 'income'} */
   type: '',
   categoryId: '',
+  source: '',
 };
 
 /** @param {HTMLElement} root */
@@ -42,10 +44,20 @@ export async function renderOperations(root, params = {}) {
   );
   typeSelect.value = state.type;
   catSelect.value = state.categoryId;
+  // Фильтр по источнику оплаты — только если источники заведены
+  const sourceNames = await listSources();
+  if (state.source && !sourceNames.includes(state.source)) sourceNames.push(state.source);
+  const sourceSelect = sourceNames.length
+    ? el('select', { class: 'select', 'aria-label': 'Чем оплачено', onchange: onFilterChange },
+        el('option', { value: '' }, 'Любой способ оплаты'),
+        ...sourceNames.map((n) => el('option', { value: n }, n)))
+    : null;
+  if (sourceSelect) sourceSelect.value = state.source;
 
   function onFilterChange() {
     state.type = /** @type {any} */ (typeSelect.value);
     state.categoryId = catSelect.value;
+    state.source = sourceSelect ? sourceSelect.value : '';
     refresh();
   }
 
@@ -61,6 +73,7 @@ export async function renderOperations(root, params = {}) {
         el('button', { class: 'icon-btn', 'aria-label': 'Следующий месяц', onclick: () => go(1) }, '›'),
       ),
       el('div', { class: 'filter-row' }, typeSelect, catSelect),
+      sourceSelect ? el('div', { class: 'filter-row' }, sourceSelect) : null,
     ),
     el('div', { class: 'btn-row' },
       el('button', { class: 'btn', type: 'button', onclick: pickReceipt }, 'Сфотографировать чек'),
@@ -78,11 +91,12 @@ export async function renderOperations(root, params = {}) {
   }
 
   async function refresh() {
-    const ops = await listOperations({
+    const all = await listOperations({
       ...monthRange(state.month),
       type: state.type || undefined,
       categoryIds: state.categoryId ? withChildren(categories, state.categoryId) : undefined,
     });
+    const ops = state.source ? all.filter((o) => o.source === state.source) : all;
     list.innerHTML = '';
 
     if (!ops.length) {
@@ -124,7 +138,7 @@ export async function renderOperations(root, params = {}) {
       const n = o.items?.length ?? 0;
       const catName = fullName(cat, byId);
       const title = n ? `${o.store || catName} · ${n} поз.` : o.store ? `${catName} · ${o.store}` : catName;
-      const subParts = [n ? [...new Set(o.items.map((it) => (byId.get(it.categoryId) ? fullName(byId.get(it.categoryId), byId) : '')))].filter(Boolean).join(', ') : '', o.comment !== o.store ? o.comment : '', o.photoId ? '📷' : ''].filter(Boolean);
+      const subParts = [n ? [...new Set(o.items.map((it) => (byId.get(it.categoryId) ? fullName(byId.get(it.categoryId), byId) : '')))].filter(Boolean).join(', ') : '', o.comment !== o.store ? o.comment : '', o.source || '', o.photoId ? '📷' : ''].filter(Boolean);
       const amount = formatMoney(o.type === 'expense' ? -o.amount : o.amount, o.currency, { sign: true });
       const eur =
         o.currency === 'KZT'

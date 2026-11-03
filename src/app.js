@@ -13,6 +13,7 @@ import { renderPayments } from './views/payments.js';
 import { renderPayForm } from './views/pay-form.js';
 import { renderSchedules } from './views/schedules.js';
 import { renderBanks } from './views/banks.js';
+import { renderSources } from './views/sources.js';
 import { renderWishes } from './views/wishes.js';
 import { renderWishForm } from './views/wish-form.js';
 import { renderImport } from './views/import.js';
@@ -48,6 +49,7 @@ register('/planned/:id', { title: 'Платёж', back: '/payments', tab: '/paym
 register('/calendar', { title: 'Платежи', tab: '/payments', render: (root) => renderPayments(root, { view: 'calendar' }) });
 register('/loans/new', { title: 'Новый кредит', back: '/budget', tab: '/budget', render: (root, p) => renderPayForm(root, { ...p, loan: '1' }) });
 register('/loans/:id', { title: 'Кредит', back: '/budget', tab: '/budget', render: (root, p) => renderPayForm(root, { ...p, store: 'schedule' }) });
+register('/sources', { title: 'Источники оплаты', back: '/more', tab: '/more', render: renderSources });
 register('/banks', { title: 'Банки', back: '/more', tab: '/more', render: renderBanks });
 register('/wishes', { title: 'Желаемые покупки', back: '/more', tab: '/more', render: renderWishes });
 register('/import', { title: 'Импорт из чата', back: '/operations', tab: '/operations', render: renderImport });
