@@ -92,7 +92,7 @@ export async function loadMonth(month) {
  * @param {MonthData} data
  */
 export function renderCalendarMonth(body, data) {
-  const { month, today, rate, dated, undated, spentByDay } = data;
+  const { month, today, dated, spentByDay } = data;
   const { from, to } = monthRange(month);
   const maxSpent = Math.max(0, ...spentByDay.values());
   /** @type {Map<string, import('../calendar-events.js').CalEvent[]>} */
@@ -140,24 +140,21 @@ export function renderCalendarMonth(body, data) {
       grid,
       el('p', { class: 'muted small', style: 'margin:8px 0 0' },
         el('span', { class: 'cal-dot cal-dot-out cal-legend' }), ' оплатить  ',
-        el('span', { class: 'cal-dot cal-dot-in cal-legend' }), ' получить  · число — потрачено за день'),
+        el('span', { class: 'cal-dot cal-dot-in cal-legend' }), ' получить  · число — потрачено за день. Весь месяц — во вкладке «Список».'),
     ),
-    totalsCard(dated, undated, rate),
     dayBox,
   );
-  if (undated.length) {
-    const list = el('div', { class: 'list' });
-    for (const ev of undated) list.append(eventRow(ev, today));
-    body.append(el('h2', { class: 'section-title' }, 'В течение месяца, без точной даты'), list);
-  }
 
   function showDay() {
     dayBox.innerHTML = '';
     if (!selected) return;
     const dayItems = byDate.get(selected) ?? [];
     const spent = spentByDay.get(selected) ?? 0;
-    if (!dayItems.length && !spent) return;
     dayBox.append(el('h2', { class: 'section-title' }, formatDate(selected)));
+    if (!dayItems.length && !spent) {
+      dayBox.append(el('p', { class: 'muted' }, 'В этот день платежей и поступлений нет.'));
+      return;
+    }
     if (spent) dayBox.append(el('a', { class: 'banner', href: `#/operations?month=${month}` }, el('strong', null, `Потрачено: ${money(spent)}`), el('div', { class: 'small' }, 'Открыть операции месяца')));
     if (dayItems.length) {
       const group = el('div', { class: 'list' });
