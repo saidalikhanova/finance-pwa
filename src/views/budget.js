@@ -314,9 +314,9 @@ export async function renderBudget(root) {
  */
 export function expectedRow(p, today, rate, nested = false) {
   const st = expectedStatus(p, today);
-  // Единые слова: ожидается · срок сегодня · просрочено N дн. · получено <дата>
+  // Единые слова: не получено · срок · просрочено N дн. · получено <дата>
   const ps = payStatus({ date: p.dateKind === 'day' ? p.date : null, type: 'income', done: p.done, doneDate: p.receivedDate }, today);
-  const label = p.dateKind === 'month' && !p.done && st.status !== 'overdue' ? `ожидается ${whenLabel(p, formatDate)}` : st.status === 'overdue' && !p.done ? `просрочено ${st.daysLate} дн.` : ps.text;
+  const label = p.dateKind === 'month' && !p.done && st.status !== 'overdue' ? `не получено · ${whenLabel(p, formatDate)}` : st.status === 'overdue' && !p.done ? `не получено · просрочено ${st.daysLate} дн.` : ps.text;
   const eur = p.currency === 'KZT' ? toEurCents(p.amount, 'KZT', rate) : null;
   const shown = st.status === 'received' && p.receivedAmount != null ? p.receivedAmount : p.amount;
   return el(

@@ -5,16 +5,17 @@ import { monthEvents } from '../src/calendar-events.js';
 test('статусы платежей: ожидается, срок сегодня, просрочено, оплачено / получено', () => {
   const t = '2026-11-10';
   assert.equal(payStatus({ date: '2026-11-15', type: 'expense' }, t).kind, 'upcoming');
-  assert.equal(payStatus({ date: '2026-11-10', type: 'expense' }, t).text, 'срок сегодня');
+  assert.equal(payStatus({ date: '2026-11-10', type: 'expense' }, t).text, 'не оплачено · срок сегодня');
+  assert.equal(payStatus({ date: '2026-11-15', type: 'income' }, t).text, 'не получено · срок 15 нояб.');
   const late = payStatus({ date: '2026-11-05', type: 'expense' }, t);
   assert.equal(late.kind, 'overdue');
   assert.equal(late.daysLate, 5);
-  assert.ok(late.text.startsWith('просрочено 5 дн.'));
-  assert.equal(payStatus({ date: null, type: 'income' }, t).text, 'в течение месяца');
+  assert.ok(late.text.startsWith('не оплачено · просрочено 5 дн.'));
+  assert.equal(payStatus({ date: null, type: 'income' }, t).text, 'не получено · в течение месяца');
   assert.ok(payStatus({ date: '2026-11-01', type: 'income', done: true, doneDate: '2026-11-03' }, t).text.startsWith('получено'));
   assert.ok(payStatus({ date: '2026-11-01', type: 'expense', done: true, doneDate: '2026-11-03' }, t).text.startsWith('оплачено'));
-  assert.equal(markLabel('expense'), 'Оплатила');
-  assert.equal(markLabel('income'), 'Получила');
+  assert.equal(markLabel('expense'), '+ Факт');
+  assert.equal(markLabel('income'), '+ Факт');
 });
 
 test('платежи: у каждого события — куда ведёт отметка', () => {

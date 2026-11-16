@@ -12,7 +12,7 @@ import { shiftMonth } from './ui.js';
  * @property {number} amount — в минимальных единицах своей валюты
  * @property {'EUR' | 'KZT'} currency
  * @property {string} href
- * @property {string | null} pay — куда ведёт «Оплатила» / «Получила»; null — запишется сам
+ * @property {string | null} pay — куда ведёт «+ Факт»; null — запишется сам
  * @property {'recurring' | 'planned' | 'source' | 'debt'} kind
  */
 
