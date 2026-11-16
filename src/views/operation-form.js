@@ -25,6 +25,8 @@ import { categoryChips } from './category-chips.js';
 import { fullName } from '../category-tree.js';
 import { showLimitMessages } from './limit-check.js';
 import { sourceChips, lastSource, rememberSource } from './source-chips.js';
+import { autoLinkPayment, linkOperation, unlinkedOperationsFor } from '../repo/pay-link.js';
+import { addDays } from '../dates.js';
 
 /**
  * Форма создания и редактирования операции.
@@ -297,6 +299,26 @@ export async function renderOperationForm(root, params, opts = {}) {
     mainBox,
   ].filter((n) => n != null));
   if (hint) form.prepend(hint);
+  // Уже записали эту оплату отдельно (например, через бюджет): привязываем, а не вводим второй раз
+  const payTarget = loan && loanDueInfo
+    ? { name: loan.name, amount: loan.amount, currency: loan.currency, date: loanDueInfo.date, schedule: loan, due: loanDueInfo, type: /** @type {'expense'} */ ('expense'), categoryId: loan.categoryId }
+    : plannedPay
+      ? { name: plannedPay.name, amount: plannedPay.amount, currency: plannedPay.currency, date: plannedPay.date, planned: plannedPay, type: plannedPay.type, categoryId: plannedPay.categoryId }
+      : null;
+  if (payTarget) {
+    const found = await unlinkedOperationsFor(payTarget, addDays(payTarget.date, -31), todayISO());
+    if (found.length) {
+      form.prepend(el('div', { class: 'card' },
+        el('strong', null, 'Уже записывали эту оплату?'),
+        el('p', { class: 'muted small' }, 'Выберите запись, и платёж отметится оплаченным без второй операции.'),
+        ...found.slice(0, 5).map((o) => el('button', { class: 'btn btn-secondary btn-small', type: 'button', style: 'display:block;width:100%;margin-top:6px;text-align:left', onclick: async () => {
+          await linkOperation(o, payTarget);
+          toast(payTarget.type === 'income' ? 'Отмечено как полученное' : 'Отмечено как оплаченное');
+          goBack();
+        } }, `${formatDate(o.date)} · ${formatMoney(o.type === 'expense' ? -o.amount : o.amount, o.currency, { sign: true })}${o.comment ? ` · ${o.comment}` : ''}`)),
+      ));
+    }
+  }
   root.append(form);
   fillCategories();
   syncAmountWithItems();
@@ -379,11 +401,15 @@ export async function renderOperationForm(root, params, opts = {}) {
       scheduledDate: loanDueInfo?.date ?? (plannedPay?.recurringId ? plannedPay.date : null) ?? existing?.scheduledDate ?? null,
     };
     rememberSource(data.source);
+    /** @type {string | null} */
+    let linkedName = null;
     try {
       if (existing) {
         await updateOperation(existing.id, data);
       } else {
         const op = await createOperation(data);
+        // Запись вручную закрывает ожидающий платёж (аренда и т. п.), чтобы не отмечать его второй раз
+        if (!wish && !plannedPay && !loan) linkedName = await autoLinkPayment(op);
         if (wish) await updateWish(wish.id, { status: 'bought', boughtAt: data.date, actualPrice: data.amount, operationId: op.id });
         if (plannedPay) await markReceived(plannedPay.id, { operationId: op.id, date: data.date, amount: data.amount });
         if (loan && loanDueInfo) {
@@ -394,7 +420,9 @@ export async function renderOperationForm(root, params, opts = {}) {
           return;
         }
       }
+      const linkedNote = linkedName ? `Платёж «${linkedName}» отмечен ${data.type === 'income' ? 'полученным' : 'оплаченным'}` : '';
       let message = existing ? 'Изменения сохранены' : 'Операция сохранена';
+      if (linkedNote) message += `. ${linkedNote}`;
       if (rate) {
         // Запоминаем курс на дату и пересчитываем другие операции за эту дату без курса.
         const n = await saveRate(data.date, rate);
@@ -408,7 +436,7 @@ export async function renderOperationForm(root, params, opts = {}) {
         // Лимиты статьи и её категории (у категории — вместе со статьями)
         const shown = await showLimitMessages(month, catIds, allCategories, todayISO());
         if (compact) {
-          if (!shown) toast(`Записано: ${fullName(allCategories.find((c) => c.id === data.categoryId), new Map(allCategories.map((c) => [c.id, c])))} — ${amountInput.value.trim()} ${currency === 'KZT' ? '₸' : '€'}`);
+          if (!shown) toast(`Записано: ${fullName(allCategories.find((c) => c.id === data.categoryId), new Map(allCategories.map((c) => [c.id, c])))} — ${amountInput.value.trim()} ${currency === 'KZT' ? '₸' : '€'}${linkedNote ? `. ${linkedNote}` : ''}`);
           amountInput.value = '';
           categorySelect.value = '';
           picker?.clear();

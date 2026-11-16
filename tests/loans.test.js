@@ -181,3 +181,40 @@ test('удаление обычной операции по расписанию
   assert.equal((await listPlanned({}, db)).length, 0);
   db.close();
 });
+
+test('ручная операция закрывает ожидающий платёж (аренда): разовый и по расписанию', async () => {
+  const { autoLinkPayment, pendingFor, pickOne } = await import('../src/repo/pay-link.js');
+  const { createPlanned, getPlanned } = await import('../src/repo/planned.js');
+  const db = await fresh();
+  const rent = await createSchedule({ name: 'Аренда', type: 'expense', amount: 900_00, currency: 'EUR', categoryId: 'rent', period: 'monthly', startDate: '2026-11-10', confirm: true }, db);
+  // Расход записан вручную до срока: платёж по расписанию закрывается, в срок он не появится снова
+  const op = await createOperation({ type: 'expense', amount: 900_00, currency: 'EUR', date: '2026-11-05', categoryId: 'rent' }, db);
+  assert.equal(await autoLinkPayment(op, db), 'Аренда');
+  const after = await getSchedule(rent.id, db);
+  assert.equal(after?.generatedCount, 1, 'ноябрьский платёж засчитан');
+  const saved = (await listOperations({}, db)).find((o) => o.id === op.id);
+  assert.equal(saved?.recurringId, rent.id);
+  assert.equal(saved?.scheduledDate, '2026-11-10');
+  assert.equal((await pendingFor({ type: 'expense', categoryId: 'rent', date: '2026-11-20' }, db)).length, 0, 'в ноябре больше нечего оплачивать');
+
+  // Разовый платёж: закрывается, удаление операции возвращает его
+  const one = await createPlanned({ name: 'Страховка', type: 'expense', amount: 50_00, currency: 'EUR', categoryId: 'ins', date: '2026-11-12', dateKind: 'day' }, db);
+  const op2 = await createOperation({ type: 'expense', amount: 48_00, currency: 'EUR', date: '2026-11-08', categoryId: 'ins' }, db);
+  assert.equal(await autoLinkPayment(op2, db), 'Страховка');
+  assert.equal((await getPlanned(one.id, db))?.done, true);
+  await deleteOperation(op2.id, db);
+  assert.equal((await getPlanned(one.id, db))?.done, false, 'без операции платёж снова ждёт отметки');
+
+  // Два платежа в категории: связываем только по точной сумме, иначе не трогаем
+  await createPlanned({ name: 'Свет', type: 'expense', amount: 30_00, currency: 'EUR', categoryId: 'home', date: '2026-11-15', dateKind: 'day' }, db);
+  await createPlanned({ name: 'Вода', type: 'expense', amount: 20_00, currency: 'EUR', categoryId: 'home', date: '2026-11-16', dateKind: 'day' }, db);
+  const odd = await createOperation({ type: 'expense', amount: 25_00, currency: 'EUR', date: '2026-11-10', categoryId: 'home' }, db);
+  assert.equal(await autoLinkPayment(odd, db), null, 'неясно, какой из двух — не связываем');
+  const exact = await createOperation({ type: 'expense', amount: 20_00, currency: 'EUR', date: '2026-11-10', categoryId: 'home' }, db);
+  assert.equal(await autoLinkPayment(exact, db), 'Вода');
+  assert.equal(pickOne({ amount: 1, currency: 'EUR' }, []), null);
+  // Другая категория или другой месяц — не трогаем
+  const other = await createOperation({ type: 'expense', amount: 900_00, currency: 'EUR', date: '2026-11-05', categoryId: 'food' }, db);
+  assert.equal(await autoLinkPayment(other, db), null);
+  db.close();
+});
